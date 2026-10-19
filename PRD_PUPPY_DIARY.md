@@ -1,7 +1,9 @@
 # Wag Journal: product requirements document
 
-Status: revised following product discovery; confirmed decisions and remaining implementation questions  
+Status: product decisions confirmed following the 46-question requirements interview; implementation and release validation pending
 Date: 19 October 2026
+
+This document is the product source of truth. The user accepted all 46 interview recommendations and confirmed the consolidated understanding. The [implementation and readiness checklist](IMPLEMENTATION_READINESS.md) tracks the remaining work and decision provenance. Confirmation authorises these documentation updates; it does not authorise service purchases or app implementation. Provisional values below are accepted starting points for validation, not proven care guidance or completed checks.
 
 ## 1. Purpose
 
@@ -13,9 +15,9 @@ The core loop is: start with a suitable schedule, record what actually happens, 
 
 - Use **Wag Journal** as the app name across the web app, native mobile apps and user-facing materials.
 - Launch a React web app with a very simple kiosk interface and responsive phone access. React Native mobile apps follow after the web experience is validated.
-- Host the web app and API on Vercel, targeting the Hobby plan and no more than 12 API route entrypoints or deployed functions.
+- Host the web app and API on Vercel with commercial-ready hosting and no more than 12 API route entrypoints or deployed functions. Use a provisional A$100 monthly operating ceiling with usage alerts; select and cost services before purchasing.
 - Design for owners and caregivers who may not be technically confident.
-- Record outside trips, potty events, playtime, meals, training and crate time.
+- Record all seven activities: outside trips, potty events, playtime, meals, training, crate time and sleep.
 - Visualise and export recorded data.
 - Help owners understand which times of day work best and develop a consistent rhythm.
 - Offer starting schedules informed by puppy age and other relevant factors, with owner-controlled adjustments.
@@ -23,7 +25,9 @@ The core loop is: start with a suitable schedule, record what actually happens, 
 
 ## 3. Confirmed launch scope and priorities
 
-The product is free at launch, with public signup for independent households. Each household tracks one dog initially, with a data model that can support additional dogs later.
+The product is free at launch, with public signup for independent households after a household pilot. Plan for a future commercial product without adding billing at launch. Each household tracks one dog initially, with a data model that can support additional dogs later. A person can belong to multiple households; personal devices provide a clearly labelled household switcher and each kiosk stays paired to one household.
+
+Provisionally allow 10 caregivers and three paired kiosks per household. Explain limits clearly. Apply abuse controls to signup and invitations without imposing an arbitrary daily limit on ordinary care logging. Run a pilot with 5–10 households for at least two weeks after core flows pass testing, extending it until the release criteria are met.
 
 Priorities, highest first:
 
@@ -36,7 +40,7 @@ The dashboard and schedule suggestions should follow this order. These are desir
 - Support a shared, ready-to-use tablet kiosk and personal phones for logging and reviewing the diary.
 - Provide separate caregiver accounts linked to one shared household diary. The owner manages access; all caregivers can log, correct entries and edit the schedule, with attribution and undo for changes.
 - Support offline logging on tablets and phones, with durable local storage, visible pending status and automatic synchronisation.
-- Record point events and durations. Provide configurable defaults per activity, easy overrides and optional start/stop recording.
+- Record point events and durations. Running timers are the first-use default for duration activities; provide configurable estimated presets and easy overrides.
 - Record preset durations immediately as estimates; allow later confirmation or correction. Never silently convert an estimate to an observed end time.
 - Include sleep tracking separately from crate occupancy, optional settling time and wake-up records.
 - Provide stable starting routines with fixed times and event-based prompts. Suggest evidence-supported adjustments when patterns persist; require an owner to accept, edit or dismiss each suggestion.
@@ -49,7 +53,7 @@ The dashboard and schedule suggestions should follow this order. These are desir
 
 ### Set up a puppy and starting routine
 
-The owner creates an account and household, enters the puppy's name and date of birth or estimated age, confirms the household timezone and provides daily routine constraints. They can choose a suggested schedule, customise it or begin logging without one.
+The owner creates an account and household, enters the puppy's name and date of birth or estimated age, confirms the household timezone and provides daily routine constraints. Keep the profile minimal, adding care factors only where documented rules use them. Use the illustrated puppy identity; photo uploads and diary attachments are outside launch scope. The owner can choose a suggested schedule, customise it or begin logging without one.
 
 ### Record an activity in the moment
 
@@ -91,6 +95,18 @@ Sleep is included at launch and must not be inferred from crate occupancy. Settl
 - Offer quick undo and protect against accidental repeated taps. Retried network requests must not create duplicate events.
 - Allow an owner to mark periods of incomplete logging so summaries can distinguish missing information from inactivity.
 
+### Logging defaults, corrections and outcomes
+
+- Start outside trips, play, training, crate time and sleep with running timers by default. Personal accounts remember their own timer/preset preferences across devices. Each kiosk has shared device preferences; one caregiver's personal changes do not alter other people's controls. Do not introduce preset care-duration values without review.
+- Use the two-tap flow Potty → Wee / Poo / Both. Save on the second tap, then offer location, accident status and other details. Keep “Mark as accident” prominent. Unspecified location and accident status remain unknown.
+- Automatically link a potty event to the single outside trip active at its occurrence time, with visible undo. Multiple possible trips require selection. Linking does not infer location or accident status. Ending a trip offers an optional “No result”; no response remains unknown.
+- Preserve multiple potty events within a trip. Count the trip once in trip-level outcome summaries and count potty events separately. If a new result conflicts with “No result”, offer an explicit replacement rather than silently reconciling the contradiction.
+- A forgotten timer remains unfinished until confirmed or corrected. Show “Still running?” with end-now and earlier-end options. Flag sessions crossing midnight for review without repeated notifications; never invent their end times.
+- Starting an already-running activity offers “Keep running” or “End earlier session and start new”, with correction of the earlier end time. Competing offline starts are preserved for review, not silently merged or discarded.
+- Ending crate time leaves sleep unchanged unless the caregiver selects “Also woke up”. Waking ends sleep but does not end crate occupancy. Starting sleep may offer a link to an active crate session without assuming location.
+- Provide backdating shortcuts for 5, 15 and 30 minutes ago and an exact date/time picker. Actual records must be now or in the past; future activities belong in Routine. Reject an end before its start. Explain a future timestamp caused by device-clock error without losing entered details.
+- Keep quick undo available for 10 seconds. Corrections and deleted records remain recoverable through change history for 30 days by authorised caregivers. Undo creates a new change and preserves intervening edits or requires conflict resolution. Household deletion overrides record recovery. Locked kiosks retain only immediate undo; broader history requires authenticated access.
+
 ## 6. Kiosk requirements
 
 - Prioritise logging, current activity and recent history over charts or configuration.
@@ -98,10 +114,16 @@ Sleep is included at launch and must not be inferred from crate occupancy. Settl
 - Use readable labels and accessible controls; do not rely on colour or icons alone. Target WCAG 2.2 AA at implementation and validation.
 - Show which puppy is being logged, the current time and the time since relevant recent events.
 - Keep a paired household device ready to log without repeated sign-in for each event. Pairing requires an authenticated owner.
-- Restrict locked kiosk access to logging and limited recent history. Require a PIN to leave logging mode for settings, exports or caregiver management. Unlocking does not grant owner privileges: authenticated caregiver permissions still apply. Rate-limit PIN attempts and provide owner-controlled recovery and automatic relocking.
+- Restrict locked kiosk access to logging, backdating, immediate undo, today's entries and active sessions. Keep notes and full history behind unlocking; editing or deleting older entries requires unlocking. Use a six-digit PIN to leave logging mode, followed by personal authentication where needed to establish permissions. The PIN alone must never expose an owner account. Relock management after two minutes of inactivity. Rate-limit failed attempts; the owner resets a forgotten PIN. Account, membership and device-management changes require internet access.
 - Let the owner revoke a kiosk remotely. Record the device as the source when a caregiver is not individually identified; never falsely attribute an entry to the owner.
 - Save offline entries durably on the device and show their pending status. Synchronise without duplication and surface conflicts that require correction.
 - If local persistence fails, clearly state that the event has not been saved.
+
+### Supported devices and disconnected access
+
+Target current iPads, iPhones, Android phones and desktop browsers, prioritising current Safari and Chrome on applicable platforms. Support older devices only after testing. Record exact devices, OS versions and browser versions before claiming support; a specific kiosk model is not yet selected. Explain installation and permission prerequisites for phone notifications.
+
+A disconnected kiosk cannot learn that access has been revoked. It can continue logging locally until reconnection. On reconnecting, lock ordinary access and quarantine pending entries for owner review. Do not silently import them or delete pending work. Apply the same principle to a removed caregiver. Explain this limitation during kiosk pairing. The secure quarantine/review mechanism must be designed and tested before release; revocation must not grant ordinary read or write access.
 
 ### Usability for nontechnical caregivers
 
@@ -175,27 +197,34 @@ Use date of birth or estimated age, expected adult size, usual wake and bedtime,
 - Support fixed-time activities and relative activities, such as an outside opportunity following a recorded wake-up or meal. Specific timing values require sourced content review before release.
 - Allow all caregivers to move, add, remove and skip activities, change durations and maintain different weekday and weekend routines. Attribute changes and support undo as a new version, preserving intervening edits or surfacing conflicts.
 - Show planned and actual activity separately. Completing a schedule item must create or link to an actual record; scheduled time alone is never evidence that an activity happened.
-- Automatically link a logged activity to a scheduled item when there is exactly one eligible match within a defined activity-specific time window. Provide easy undo. Ambiguous matches remain unlinked until a caregiver chooses; already fulfilled items cannot be matched twice. Reconcile offline matches on sync. Matching windows remain an implementation detail to validate.
+- Automatically link a logged activity to a scheduled item when there is exactly one eligible match within a defined activity-specific time window. Provide easy undo. Ambiguous matches remain unlinked until a caregiver chooses; already fulfilled items cannot be matched twice. Reconcile offline matches on sync. Use actual start times and identical activity types. Provisional matching windows are ±30 minutes for meals and ±15 minutes for other fixed-time activities; validate these as software tolerances, not care advice.
 - Keep missed or skipped plans distinct from missing diary entries.
-- Resolve competing relative prompts without duplicating the same upcoming activity. Manual changes take precedence over template defaults.
+- Combine relative outside prompts whose due times fall within a provisional 15-minute window, showing all reasons. An existing manually scheduled outside opportunity within that window takes precedence. Completing the combined opportunity fulfils it once. Validate merging, including chains of nearby prompts, before release. Manual changes take precedence over template defaults.
 - When the puppy enters another template age band, offer a preview of suggested changes and retain the existing schedule until the owner accepts them.
-- Record schedule versions and effective dates. Do not alter historical plans when editing a future routine.
+- Record schedule versions and effective dates. Default routine changes to tomorrow, with explicit today and future-date options and “This occurrence only” for one-off changes. Preview when the change takes effect. Applying an edit today changes only future, uncompleted items; completed and past plans retain their history.
 - Keep a stable baseline, with flexible prompts following confirmed meals, waking and other relevant activities. An estimated end cannot trigger an event-based care reminder.
 - Generate occasional suggested changes when patterns persist across several days. Explain the proposed change, supporting observations, sample size, unknown data and applicable schedule constraints. The owner can accept, edit or dismiss; no change applies automatically.
 - Prioritise suggestions about toilet timing, then sleep and settling. Preserve protected vet or trainer instructions and show when a suggestion conflicts with them.
 
+### Protected care constraints
+
+Only the owner can add, change or remove protected vet/trainer constraints. Caregivers may edit within them; conflicting edits require the owner to explicitly resolve the conflict. Retain the instruction, its source and change history. Free-text notes are not automatically machine-enforceable rules. Define the supported structured constraints and their conflict checks during content and technical design. Suggestions must never silently override them.
+
 ### Reminders and muting
 
 - Provide in-app upcoming activities and phone notifications for every caregiver who grants the necessary permission. Delivery remains subject to browser and operating-system capabilities.
-- Provide a prominent personal one-tap mute/unmute control. Offer one hour, until morning and until manually re-enabled, with a visible mute status and resume time. Until morning uses a clearly displayed next local morning time that can be adjusted.
-- Keep mute state and quiet hours per caregiver across their devices. Muting one caregiver never mutes another.
+- Provide a prominent personal one-tap mute/unmute control. Offer one hour, until morning and until manually re-enabled, with a visible mute status and resume time. Until morning defaults to the household's configured wake time and shows the exact next resume time before confirmation; it can be adjusted.
+- Keep mute state and quiet hours per caregiver across their devices. Muting one caregiver never mutes another. Quiet hours start switched off and are offered during setup.
+- Send one reminder per planned occurrence to each eligible caregiver, without repeated nagging or escalation. Keep the planned item visible as unconfirmed; silence is not completion or evidence that care was missed.
+- Offer personal snooze for 10, 30 or 60 minutes. Snooze changes that caregiver's reminder only, not the household routine or other caregivers' reminders. Completion cancels pending snoozes.
+- Suppress a notification that would arrive more than 15 minutes after its intended delivery time. An explicitly snoozed reminder uses its new intended time. Keep the activity visible in the app. After reconnecting or unmuting, resume relevant upcoming reminders without a stale backlog. The 15-minute limit is a software notification policy, not care guidance.
 - Completing or linking an activity clears its pending reminder across connected devices and cancels unsent duplicate reminders. Best-effort dismissal of already delivered notifications depends on platform support; do not promise remote removal everywhere.
 - Reconcile offline completions on sync. Do not flood caregivers with stale reminders after reconnecting or unmuting; show what is currently relevant.
 - Validate the supported phone/browser matrix before implementation and explain any installation or permission steps during setup. In-app reminders remain available if push is unsupported or denied.
 
 ### Content requirements
 
-Template values and rules are a launch dependency: research and review them against reputable veterinary and animal-welfare sources. This PRD does not prescribe feeding, exercise, toilet or crate-duration limits. Individual care instructions must remain editable, and household constraints must not produce unsupported care recommendations.
+Template values and rules are a launch dependency: research them against reputable veterinary and animal-welfare sources, then obtain review of care-related timing and rules from a qualified vet or trainer. The reviewer has not yet been named. Logging can be built and tested independently; unreviewed care guidance must not be released publicly. This PRD does not prescribe feeding, exercise, toilet or crate-duration limits. Individual care instructions must remain editable, and household constraints must not produce unsupported care recommendations.
 
 ## 8. Visualisation and interpretation
 
@@ -226,6 +255,14 @@ Template values and rules are a launch dependency: research and review them agai
 - Filter or annotate marked incomplete periods. Never imply an unlogged activity did not occur.
 - Do not automatically change the schedule based on inferred patterns.
 
+### Evidence thresholds and logging completeness
+
+Descriptive views may appear before automatic suggestions are justified. Provisionally require at least seven sufficiently logged days and 10 relevant observations before proposing a change. These are starting thresholds for feature-specific validation, not a claim of medical confidence. Define comparison windows, eligible observations and rule-specific exclusions before enabling suggestions.
+
+During weekly review, ask caregivers to mark days “Mostly complete”, “Some gaps” or “Unsure”, with optional gap times. Only mostly complete days qualify for automatic suggestions; other days remain in descriptive charts with clear limitations. Explicit gaps and unknown outcomes remain excluded or annotated as applicable even on mostly complete days. Never infer completeness from event count alone.
+
+Show at most one new suggestion per week and suppress an equivalent dismissed suggestion for two weeks. Define equivalence and the observation window in the rule specification. Explain counts, unknowns and constraints, and retain owner acceptance/edit/dismiss controls.
+
 ## 9. Accounts, storage and export
 
 ### Ownership and access
@@ -233,25 +270,35 @@ Template values and rules are a launch dependency: research and review them agai
 - Every puppy, event and schedule belongs to a household bound to its owner account.
 - The owner manages membership and kiosk access. Caregivers may log, correct records, view and export the shared diary, and edit schedules with attributed change history and undo; ownership and deletion controls remain with the owner.
 - Authorise every server request against household membership or a limited kiosk credential. Knowing a record identifier must never grant access.
-- Support secure sign-in, sign-out and account recovery through an established authentication solution.
-- Support export and deletion of household data, with a documented retention and backup-deletion policy.
+- Use verified email and password through an established authentication solution, supporting password managers, persistent personal-device sessions and email-based password recovery. Defer social sign-in. Email verification, invitations and recovery are in scope; email care reminders are not.
+- Invitations expire after seven days, are single-use and are tied to the invited email address.
+- Ownership may transfer to an existing caregiver after that person's acceptance. An owner must transfer or delete owned households before leaving them or deleting their account.
+- Removing membership preserves historical attribution. Deleting the personal account preserves shared care records with anonymised “Former caregiver” attribution and removes personal account information.
+- Support export and deletion of household data, with the recovery and deletion rules below.
+
+### Deletion, sign-out and local retention
+
+- Household deletion immediately stops reminders and ordinary household access, with a seven-day cancellation period for the owner. After that period, purge live data. Target backup expiry within 30 further days, subject to verified provider capabilities. Document how restored backups respect prior deletion requests.
+- Personal devices cache 30 days of diary history and the current routine. Locked kiosks expose only today and active sessions. Pending entries are retained until safely resolved regardless of age; active sessions remain available. Older history and exports require internet access.
+- On sign-out with pending entries, show their count and offer “Stay and sync” or explicit “Discard pending entries and sign out”. Do not silently discard work or leave private data accessible after sign-out. Partition caches by household; account switching must not leak the previous account's data.
+- Revocation uses the quarantine/review behaviour in section 6. Specify protected pending-data retention and disposal during technical design; it must not become accessible through the revoked account or kiosk.
 
 ### Persistent records
 
-Store users, households, memberships, puppy profiles, kiosk devices, activity events, activity links, schedule templates, schedule versions, schedule items, schedule suggestions and decisions, change history, per-activity duration defaults, notification preferences, push subscriptions, reminder delivery state and incomplete-logging periods in a relational database.
+Store users, households, memberships, puppy profiles, kiosk devices, activity events, activity links, schedule templates, schedule versions, schedule items, schedule suggestions and decisions, change history, per-activity duration defaults, notification preferences, push subscriptions, reminder delivery state and incomplete-logging periods and daily completeness assessments in a relational database. Include invitations, ownership-transfer state, deletion requests and revocation/quarantine state as required by the access and recovery flows.
 
 Activity records include a stable ID, household and puppy IDs, type, occurrence time, estimated duration and end time, optional confirmed end time, confirmation status, trip purpose, potty type, location, accident status, structured outcome fields, notes, source device or caregiver, creation time, modification time and sync identifier. Use deletion markers where needed to propagate removals to offline clients, then purge according to the retention policy.
 
-Store timestamps in UTC and retain timezone context. Render routine comparisons in the selected household timezone, handle daylight-saving changes explicitly and calculate elapsed durations from absolute timestamps.
+Store timestamps in UTC and retain timezone context. Anchor routines to the household timezone until it is explicitly changed; travelling with a device must not move the routine. Timezone changes apply prospectively and preserve historical context. Render routine comparisons in the selected household timezone and calculate elapsed durations from absolute timestamps. During daylight-saving transitions, move a nonexistent planned time to the first valid time and deliver a repeated clock-time activity once, with the adjustment visible. Define deterministic handling of ambiguous manually entered times during technical design.
 
 ### Export
 
 - Export all records or a selected date range and activity set as CSV.
-- Include stable IDs, event type, start and end timestamps, timezone, outcomes, notes, linked-event IDs and attribution where known.
+- Include stable IDs, event type, start and end timestamps, timezone, outcomes, notes, linked-event IDs and attribution where known. Exclude caregiver email addresses from ordinary exports.
 - Export schedule versions and planned items separately so plans and observations cannot be confused.
 - Preserve unknown values as unknown; include field definitions and units.
 - Escape CSV safely, including protection against spreadsheet formula execution in user-entered fields.
-- Generate a downloadable, printable PDF summary for a selected date range, suitable for a vet or trainer. Include puppy age, relevant schedule versions, toilet patterns and accidents, sleep and settling, summary counts, estimates, unknowns and logging gaps. Include the diary and current schedule as printable views.
+- Generate a downloadable, printable PDF summary for a selected date range, suitable for a vet or trainer. Include puppy age, relevant schedule versions, toilet patterns and accidents, sleep and settling, summary counts, estimates, unknowns and logging gaps. Default the PDF to the last seven days, with 7-day, 30-day and custom date ranges. Lead with a concise summary and relevant routine, followed by optional diary detail. Include the diary and current schedule as printable views.
 
 ## 10. Reliability and architecture
 
@@ -259,17 +306,17 @@ Store timestamps in UTC and retain timezone context. Render routine comparisons 
 
 - Release 1: launch the responsive React web application for shared tablets, phones and desktop browsers. Include the agreed logging, offline support, schedules, browser notifications, accounts and exports.
 - Release 2: build React Native mobile apps after validating the web experience. Native apps remain in product scope but are not a web-launch dependency. Select supported operating-system versions during mobile implementation planning.
-- Host the web application and shared authenticated API on Vercel, preferably Hobby. Native app binaries require their own build and distribution process; they consume the same backend and household data.
+- Host the web application and shared authenticated API on Vercel using a plan suitable for the agreed commercial direction. Native app binaries require their own build and distribution process; they consume the same backend and household data.
 - Keep no more than 12 API route entrypoints and no more than 12 deployed Vercel Functions. Prefer a small set of grouped handlers with internal routing, leaving room for authentication callbacks and notification delivery. Check actual deployment output, including any server-rendered functions, rather than counting source files alone.
 - Vercel counts deployed functions; the relationship to URL routes depends on the framework and bundling. This PRD retains the requested 12-route ceiling as an additional project constraint. See [Vercel runtime and function-count documentation](https://vercel.com/docs/functions/runtimes#functions-created-per-deployment), checked 19 October 2026.
 - Share API contracts, validation rules and domain logic where practical between React and React Native, with platform-specific presentation, durable offline storage and notification adapters.
 - Use a managed relational database compatible with serverless access. Do not store authoritative records in a function's local filesystem. Keep database credentials server-side and choose a connection strategy suitable for concurrent functions.
-- Rust remains the backend preference where practical; the runtime choice must satisfy Vercel deployment, function-count and maintenance constraints. It does not alter the required React and React Native clients.
-- Hobby is a cost target, not a promise of unlimited free operation. Track compute, database, storage and notification usage. Verify project eligibility against [Vercel Hobby terms](https://vercel.com/docs/plans/hobby), which restrict the plan to personal, non-commercial use; free public signup alone does not determine eligibility.
+- Rust remains preferred, subject to an early deployment test covering authentication, database access and reminder delivery. Use TypeScript if that test exposes substantial deployment or maintenance problems. Preserve shared API contracts in either case. The runtime must satisfy deployment and function-count constraints without changing the required React and React Native clients.
+- Use a provisional A$100 monthly operating ceiling with usage alerts, superseding the earlier A$50/Hobby target. Cost hosting, database, authentication email, storage, backups, notifications and any domain costs, accounting for exchange rates and tax. Free public signup does not establish Hobby eligibility: [Vercel Hobby terms](https://vercel.com/docs/plans/hobby) restrict it to personal, non-commercial use. Provider selection and purchases remain pending.
 
-### Reminder delivery on Hobby
+### Reminder delivery
 
-Vercel Hobby cron jobs run at most once daily and do not provide precise timing, so they cannot drive the agreed timely care reminders. Use a compatible durable scheduler or notification service for server-originated reminders, with provider and cost limits selected before implementation. A paid Vercel plan is an alternative if needed. See [Vercel cron limits](https://vercel.com/docs/cron-jobs/usage-and-pricing), checked 19 October 2026.
+Vercel Hobby cron jobs run at most once daily and do not provide precise timing, so they cannot drive the agreed timely care reminders. Use a compatible durable scheduler or notification service for server-originated reminders, with provider and cost limits selected before implementation. Verify the selected commercial plan's capabilities and the full delivery design; choosing a paid plan alone does not establish reliable reminder behaviour. See [Vercel cron limits](https://vercel.com/docs/cron-jobs/usage-and-pricing), checked 19 October 2026.
 
 Do not rely on a browser staying open or a long-running function timer. Native local notifications may supplement delivery, but shared completion, schedule edits and personal muting must reconcile with server state. Deduplicate local and remote notifications and document platform restrictions on cancelling already scheduled or delivered alerts.
 
@@ -277,16 +324,16 @@ Do not rely on a browser staying open or a long-running function timer. Native l
 
 - Persist authoritative account data on the server. Device storage is an offline queue and cache, not the only copy.
 - Generate event IDs before sending writes and make server writes idempotent.
-- Treat concurrent edits explicitly. Prevent silent overwrites using record versions or equivalent conflict detection.
+- Treat concurrent edits explicitly. Automatically combine independent new entries, but preserve competing edits and show a plain-language comparison for resolution. Use record versions or equivalent detection to prevent silent overwrites. Competing offline starts also require review.
 - Keep kiosk credentials limited and revocable. Partition cached data by household and clear access on sign-out or revocation when the device reconnects.
 - Make sync state observable without exposing private diary data in application logs.
-- Back up the database and verify restoration before launch; document recovery and retention expectations.
-- Target visible local feedback within 200 ms on agreed representative devices. Validate server-save and multi-device synchronisation targets under documented network conditions.
+- Back up the database and verify restoration before launch. Initial disaster-recovery targets are no more than 24 hours of server data loss and restoration within one business day. These are serious-failure recovery allowances, not delayed normal saves. Demonstrate the targets and review them before wider public use.
+- Target visible local feedback within 200 ms, account-save confirmation within two seconds and visibility on another connected device within five seconds, each for at least 95% of tested operations under documented normal network conditions. Use representative devices and keep pending status visible when targets are missed.
 
-## 11. MVP acceptance criteria
+## 11. Web-release acceptance criteria
 
 1. A new owner can register, create a puppy profile and begin logging with or without a schedule.
-2. All six requested activity categories can be logged without mandatory typing; common events take at most two taps.
+2. All seven activities (Outside, Potty, Meal, Play, Training, Crate and Sleep) can be logged without mandatory typing. Common timestamp events take one tap; potty takes no more than two taps. Optional detail follows saving.
 3. A crate session survives reload, can be ended from another authorised device and never becomes a sleep record automatically.
 4. An outside trip can link to wee, poo, both, explicit no result or an unknown outcome without double-counting.
 5. Entries made during a network outage survive reload and appear once after reconnection. Concurrent edits produce a recoverable outcome.
@@ -303,18 +350,34 @@ Do not rely on a browser staying open or a long-running function timer. Native l
 16. PDF summaries respect the selected date range and label estimated and missing data consistently with CSV exports.
 17. Kiosk management requires a PIN and still enforces account permissions. Offline logs from both phones and tablet synchronise without duplication.
 18. Keyboard and touch testing, daylight-saving cases, sessions spanning midnight, duplicate requests and database restoration are covered before release.
-
 19. The Vercel deployment contains no more than 12 functions and the API has no more than 12 route entrypoints, including callbacks and reminder handlers. A build/deployment check enforces both budgets.
 20. At web launch, tablet and phone browsers access the same authorised household data and preserve estimates, offline entries and reminder preferences. At the later mobile release, verify the same behaviour across React Native and web clients using the shared API.
 21. Usability testing includes nontechnical caregivers completing setup, logging, correction, muting and PDF sharing without developer assistance.
 22. At web launch, test browser reminders with the web app closed on supported platforms under documented permission, installation and connectivity conditions. Test backgrounded native apps at the later mobile release. The delivery design does not depend on Hobby cron for timely reminders.
 23. The interface follows section 6a across logging, diary, routine and patterns. Validate labelled controls, stable action placement, touch targets, contrast, text resizing, keyboard/screen-reader use and reduced motion. Decorative elements must not add steps or obscure activity, saving or reminder states.
+24. First-use duration logging starts timers. Personal and kiosk preferences remain independent; forgotten timers and competing starts require explicit resolution.
+25. The two-tap potty flow preserves unknown location/accident status, links only an unambiguous active trip and resolves contradictory outcomes without double-counting.
+26. Kiosk PIN attempts are rate-limited, management relocks after two minutes and PIN possession does not grant owner access. Locked history, notes and edit restrictions are enforced server-side where applicable.
+27. Revocation blocks ordinary access on reconnection and quarantines pending entries for owner review; sign-out never silently discards pending work or exposes the previous account's cache.
+28. Single-use email invitations expire, household switching preserves isolation, ownership transfer requires acceptance and account deletion cannot orphan an owned household.
+29. Quick undo lasts 10 seconds, record recovery lasts 30 days, household deletion allows seven-day cancellation and the verified live/backup deletion policy is demonstrated.
+30. Routine edits default to tomorrow, one-off edits preserve the baseline and protected constraints require owner conflict resolution. Matching and merged prompts pass boundary and concurrency tests.
+31. Snooze is personal, stale reminders expire and quiet hours default off. Completion suppresses unsent snoozes and duplicate reminders without changing another caregiver's preferences.
+32. Suggestions enforce validated completeness and sample rules, show at most one new suggestion per week and suppress dismissed equivalents for two weeks. No care guidance ships without qualified review.
+33. Timezone travel, prospective timezone changes and both daylight-saving transitions preserve actual timestamps and produce one intended planned occurrence.
+34. The 30-day personal cache, persistent pending queue, online export requirements and pending-entry sign-out choices work on the supported device matrix.
+35. Performance and disaster-recovery targets in section 10 are measured and met under documented conditions.
+36. Public release has a named operator, support address and qualified content reviewer, an accepted service-cost plan, and pilot evidence meeting section 12. No unresolved defects that lose or expose data remain.
 
 ## 12. Product validation
 
-Before development, test the logging flow with puppy owners using a tablet and phone. Proposed usability target: at least 90% of common logging tasks completed correctly within five seconds after initial orientation.
+Before development, test the logging flow with puppy owners using a tablet and phone. Required usability target: at least 90% of common logging tasks completed correctly within five seconds after initial orientation.
 
-During a household pilot, assess whether owners can identify one evidence-supported pattern, explain any missing-data limits and make a schedule adjustment without assistance. Track logging effort, corrections, abandoned entries and weekly review use. Fewer accidents or improved settling may be owner-reported outcomes, but are not guaranteed effects of the app.
+During a household pilot, assess whether owners can identify one evidence-supported pattern, explain any missing-data limits and make a schedule adjustment without assistance. With explicit pilot consent, measure logging completion time, corrections, failed saves and feature use, including abandoned entries and weekly review use where measurable without collecting diary content. Exclude diary text, puppy names, care outcomes and session recordings from usage telemetry. Use interviews to assess pattern interpretation and understanding of missing-data limits. Fewer accidents or improved settling may be owner-reported outcomes, but are not guaranteed effects of the app.
+
+Run the pilot for at least two weeks with 5–10 households, including nontechnical caregivers and shared-tablet users, after core flows pass testing. Public release requires the usability target, no unresolved data-loss or data-exposure defects, verified reminder behaviour and recovery, accurate exports, access-control checks and a demonstrated database restore. Extend the pilot until the conditions are met.
+
+Before public release, name an operator, establish a working support address and name the qualified reviewer for care-related content. The operator handles service alerts, restoration and deletion requests. These people and contact details are not yet confirmed. Logging development and testing may proceed independently of care-content approval.
 
 ## 13. Outside initial scope
 
@@ -324,18 +387,22 @@ During a household pilot, assess whether owners can identify one evidence-suppor
 - Opaque AI-generated schedules or automatic schedule changes.
 - Social feeds, public puppy profiles, gamification and subscriptions.
 - Professional kennel management and multi-puppy kiosk workflows.
-- Email and SMS reminders, and external service integrations. Phone push notifications are in scope.
+- Email and SMS care reminders, and user-facing external service integrations. Phone push and infrastructure for authentication email, hosting and reminder delivery are in scope.
+- Social sign-in, photo uploads and diary attachments.
 
-## 14. Remaining implementation and validation decisions
+## 14. Remaining implementation and validation work
 
-The product interview has resolved the launch audience, pricing, device coverage, caregiver permissions, activity model, offline support, notification behaviour and export formats. These decisions do not require another approval round.
+The product interview and consolidated understanding are confirmed. The requirements above do not require another broad approval round. The [implementation and readiness checklist](IMPLEMENTATION_READINESS.md) records outstanding work, evidence and all 46 interview decisions.
 
-Before implementation or release, resolve:
+Before the relevant implementation or release stage, complete:
 
-- Sourced schedule templates, applicable age bands and care constraints. No care timing values have been validated by this PRD.
-- Explainable suggestion rules, minimum sample requirements and comparison windows that avoid overreacting to sparse or incomplete logs.
-- Activity-specific schedule-matching windows, reminder expiry and deduplication rules, and default duration values. Do not imply that a software default is care advice.
-- Supported tablet and phone browsers, native mobile operating-system versions, push-delivery prerequisites, offline storage limits and PIN/session behaviour.
-- Authentication provider, managed database, reminder scheduler, native build/distribution approach, recovery targets and account/data deletion policy. Vercel hosting and the 12-entrypoint/function budgets are confirmed; validate Hobby eligibility and the total service cost.
+- Sourced care templates, applicable age bands and supported structured constraints, with qualified review. No care timing values have been validated by this PRD.
+- Explainable suggestion algorithms, feature-specific sample rules, comparison windows and tests for sparse, unknown or incomplete data. Validate the provisional seven-day/10-observation baseline.
+- Boundary and concurrency validation of the provisional matching windows and prompt merging, plus reminder expiry, deduplication and snooze delivery semantics.
+- The exact device/browser matrix, push prerequisites, offline storage capacity and eviction handling, authenticated session lifetimes, PIN rate limits and secure pending-data quarantine. The preferred device families and kiosk behaviour are settled; exact versions and mechanisms are not.
+- Authentication/database/email/scheduler provider selection and total service costs within the provisional A$100 ceiling. Validate Rust first and use the accepted fallback if necessary. Vercel hosting and the 12-entrypoint/function budgets remain required.
+- Database schema, API contracts, authorisation rules, atomic operations, conflict resolution and deletion/restore mechanisms. Verify the accepted retention and recovery targets against provider capabilities.
+- Prototypes and all interaction states, then representative-device usability, accessibility, performance and reliability testing.
+- Named operational and care-review responsibilities, a support address and pilot evidence before public release.
 
-Validate the minimal logging flow and schedule interpretation with representative households before public web release. After web launch, use the product validation criteria to review logging usability, offline reliability and schedule interpretation before proceeding to the React Native release. These technical and content decisions should preserve the confirmed product scope above.
+After web validation, select native OS versions, build/distribution arrangements and native-specific interactions. Preserve shared contracts and behaviour now. A complete web release does not mean native apps are implemented or validated.
