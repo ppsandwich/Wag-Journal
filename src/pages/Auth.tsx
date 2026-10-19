@@ -4,6 +4,7 @@ import { supabase, cloudConfigured, api } from "../lib/api";
 import { useJournal } from "../lib/context";
 import { Field, Puppy, submit } from "../components/ui";
 import { day, uid } from "../lib/domain";
+const emailReady = import.meta.env.VITE_EMAIL_READY === "true";
 export function Welcome() {
   const j = useJournal();
   const [mode, setMode] = useState<
@@ -123,7 +124,7 @@ export function Welcome() {
               <p>Everything your puppy’s people need, in one calm place.</p>
               <button
                 className="primary full"
-                disabled={!cloudConfigured}
+                disabled={!cloudConfigured || !emailReady}
                 onClick={() => setMode("signup")}
               >
                 Start your journal <ArrowRight size={18} />
@@ -149,6 +150,12 @@ export function Welcome() {
                 </span>
                 <ArrowRight size={18} />
               </button>
+              {cloudConfigured && !emailReady && (
+                <p className="setup-note">
+                  New accounts are opening soon. For now, sign in to an existing
+                  account or explore the sample diary.
+                </p>
+              )}
               {!cloudConfigured && (
                 <p className="setup-note">
                   Accounts are being set up. The sample diary works on this
@@ -236,6 +243,7 @@ export function Welcome() {
                   <button
                     type="button"
                     className="text-button"
+                    disabled={!emailReady}
                     onClick={() => setMode("reset")}
                   >
                     Forgot password?

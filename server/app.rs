@@ -90,7 +90,10 @@ pub async fn router() -> std::result::Result<Router, Box<dyn std::error::Error +
     let db = PgPoolOptions::new()
         .max_connections(3)
         .acquire_timeout(std::time::Duration::from_secs(10))
-        .connect_lazy(&url)?;
+        .connect_lazy_with(
+            url.parse::<sqlx::postgres::PgConnectOptions>()?
+                .statement_cache_capacity(0),
+        );
     let app = Arc::new(App {
         db,
         http: reqwest::Client::builder()
@@ -119,6 +122,7 @@ async fn identity(app: &App, h: &HeaderMap) -> Result<Identity> {
     if token.starts_with("kiosk_") {
         let row =
             sqlx::query("select id,household_id,name,revoked_at from devices where token_hash=$1")
+                .persistent(false)
                 .bind(hash(token))
                 .fetch_optional(&app.db)
                 .await?
@@ -186,7 +190,7 @@ async fn identity(app: &App, h: &HeaderMap) -> Result<Identity> {
         .chars()
         .take(80)
         .collect::<String>();
-    sqlx::query("insert into profiles(id,email,name) values($1,$2,$3) on conflict(id) do update set email=excluded.email,name=excluded.name").bind(id).bind(&email).bind(&name).execute(&app.db).await?;
+    sqlx::query("insert into profiles(id,email,name) values($1,$2,$3) on conflict(id) do update set email=excluded.email,name=excluded.name").persistent(false).bind(id).bind(&email).bind(&name).execute(&app.db).await?;
     Ok(Identity {
         id,
         email,
@@ -206,6 +210,7 @@ async fn access(
         return Err(denied());
     }
     let row = sqlx::query("select data,owner_id,deletion_at from households where id=$1")
+        .persistent(false)
         .bind(h)
         .fetch_optional(&app.db)
         .await?
@@ -224,6 +229,7 @@ async fn access(
     } else {
         let member =
             sqlx::query("select role from memberships where household_id=$1 and user_id=$2")
+                .persistent(false)
                 .bind(h)
                 .bind(u.id)
                 .fetch_optional(&app.db)
@@ -258,6 +264,7 @@ async fn handle(
             }
             let valid: bool =
                 sqlx::query_scalar("select exists(select 1 from pg_timezone_names where name=$1)")
+                    .persistent(false)
                     .bind(timezone)
                     .fetch_one(&app.db)
                     .await?;
@@ -270,6 +277,7 @@ async fn handle(
             let mut tx = app.db.begin().await?;
             let count: i64 =
                 sqlx::query_scalar("select count(*) from households where owner_id=$1")
+                    .persistent(false)
                     .bind(u.id)
                     .fetch_one(&mut *tx)
                     .await?;
@@ -277,8 +285,9 @@ async fn handle(
                 return Err(bad("This account has reached its household limit."));
             }
             let data = json!({"id":id,"name":p["name"].as_str().unwrap_or("Our household"),"puppy":puppy,"birthDate":birth,"timezone":timezone,"ownerId":u.id,"version":1});
-            sqlx::query("insert into households(id,owner_id,data) values($1,$2,$3) on conflict(id) do nothing").bind(id).bind(u.id).bind(&data).execute(&mut *tx).await?;
+            sqlx::query("insert into households(id,owner_id,data) values($1,$2,$3) on conflict(id) do nothing").persistent(false).bind(id).bind(u.id).bind(&data).execute(&mut *tx).await?;
             let owner: Uuid = sqlx::query_scalar("select owner_id from households where id=$1")
+                .persistent(false)
                 .bind(id)
                 .fetch_one(&mut *tx)
                 .await?;
@@ -286,6 +295,7 @@ async fn handle(
                 return Err(denied());
             }
             sqlx::query("insert into memberships values($1,$2,'owner') on conflict do nothing")
+                .persistent(false)
                 .bind(id)
                 .bind(u.id)
                 .execute(&mut *tx)
@@ -303,10 +313,11 @@ async fn handle(
             }
             let mut tx = app.db.begin().await?;
             sqlx::query("select id from households where id=$1 for update")
+                .persistent(false)
                 .bind(h)
                 .execute(&mut *tx)
                 .await?;
-            let count:i64=sqlx::query_scalar("select (select count(*) from memberships where household_id=$1)+(select count(*) from invitations where household_id=$1 and accepted_at is null and expires_at>now())").bind(h).fetch_one(&mut *tx).await?;
+            let count:i64=sqlx::query_scalar("select (select count(*) from memberships where household_id=$1)+(select count(*) from invitations where household_id=$1 and accepted_at is null and expires_at>now())").persistent(false).bind(h).fetch_one(&mut *tx).await?;
             if count >= 10 {
                 return Err(bad(
                     "This household has reached its caregiver or invitation limit.",
@@ -316,6 +327,7 @@ async fn handle(
             sqlx::query(
                 "insert into invitations(id,household_id,email,token_hash) values($1,$2,$3,$4)",
             )
+            .persistent(false)
             .bind(Uuid::new_v4())
             .bind(h)
             .bind(email)
@@ -330,15 +342,17 @@ async fn handle(
                 return Err(denied());
             }
             let mut tx = app.db.begin().await?;
-            let row=sqlx::query("select id,household_id from invitations where token_hash=$1 and email=$2 and accepted_at is null and expires_at>now() for update").bind(hash(text(p,"token")?)).bind(&u.email).fetch_optional(&mut *tx).await?.ok_or_else(||bad("This invitation has expired, was used, or is for another email address."))?;
+            let row=sqlx::query("select id,household_id from invitations where token_hash=$1 and email=$2 and accepted_at is null and expires_at>now() for update").persistent(false).bind(hash(text(p,"token")?)).bind(&u.email).fetch_optional(&mut *tx).await?.ok_or_else(||bad("This invitation has expired, was used, or is for another email address."))?;
             let h: Uuid = row.get("household_id");
             sqlx::query("select id from households where id=$1 and deletion_at is null for update")
+                .persistent(false)
                 .bind(h)
                 .fetch_optional(&mut *tx)
                 .await?
                 .ok_or_else(denied)?;
             let count: i64 =
                 sqlx::query_scalar("select count(*) from memberships where household_id=$1")
+                    .persistent(false)
                     .bind(h)
                     .fetch_one(&mut *tx)
                     .await?;
@@ -346,11 +360,13 @@ async fn handle(
                 return Err(bad("The household is full."));
             }
             sqlx::query("insert into memberships values($1,$2,'caregiver') on conflict do nothing")
+                .persistent(false)
                 .bind(h)
                 .bind(u.id)
                 .execute(&mut *tx)
                 .await?;
             sqlx::query("update invitations set accepted_at=now() where id=$1")
+                .persistent(false)
                 .bind(row.get::<Uuid, _>("id"))
                 .execute(&mut *tx)
                 .await?;
@@ -364,13 +380,15 @@ async fn handle(
             if target == u.id {
                 return Err(bad("Transfer ownership before leaving."));
             }
-            sqlx::query("insert into former_memberships(household_id,user_id) values($1,$2) on conflict(household_id,user_id) do update set removed_at=now()").bind(h).bind(target).execute(&app.db).await?;
+            sqlx::query("insert into former_memberships(household_id,user_id) values($1,$2) on conflict(household_id,user_id) do update set removed_at=now()").persistent(false).bind(h).bind(target).execute(&app.db).await?;
             sqlx::query("delete from memberships where household_id=$1 and user_id=$2")
+                .persistent(false)
                 .bind(h)
                 .bind(target)
                 .execute(&app.db)
                 .await?;
             sqlx::query("delete from push_subscriptions where household_id=$1 and user_id=$2")
+                .persistent(false)
                 .bind(h)
                 .bind(target)
                 .execute(&app.db)
@@ -387,6 +405,7 @@ async fn handle(
             let member: bool = sqlx::query_scalar(
                 "select exists(select 1 from memberships where household_id=$1 and user_id=$2)",
             )
+            .persistent(false)
             .bind(h)
             .bind(target)
             .fetch_one(&app.db)
@@ -394,7 +413,7 @@ async fn handle(
             if !member {
                 return Err(denied());
             }
-            sqlx::query("insert into transfers(household_id,to_user) values($1,$2) on conflict(household_id) do update set to_user=excluded.to_user,created_at=now()").bind(h).bind(target).execute(&app.db).await?;
+            sqlx::query("insert into transfers(household_id,to_user) values($1,$2) on conflict(household_id) do update set to_user=excluded.to_user,created_at=now()").persistent(false).bind(h).bind(target).execute(&app.db).await?;
             json!({"ok":true})
         }
         "acceptTransfer" => {
@@ -407,6 +426,7 @@ async fn handle(
             let exists = sqlx::query(
                 "delete from transfers where household_id=$1 and to_user=$2 returning household_id",
             )
+            .persistent(false)
             .bind(h)
             .bind(u.id)
             .fetch_optional(&mut *tx)
@@ -414,8 +434,8 @@ async fn handle(
             if exists.is_none() {
                 return Err(bad("There is no ownership transfer for you."));
             }
-            sqlx::query("update memberships set role=case when user_id=$2 then 'owner' else 'caregiver' end where household_id=$1").bind(h).bind(u.id).execute(&mut *tx).await?;
-            sqlx::query("update households set owner_id=$2,data=jsonb_set(data,'{ownerId}',to_jsonb($2::text)),version=version+1 where id=$1").bind(h).bind(u.id).execute(&mut *tx).await?;
+            sqlx::query("update memberships set role=case when user_id=$2 then 'owner' else 'caregiver' end where household_id=$1").persistent(false).bind(h).bind(u.id).execute(&mut *tx).await?;
+            sqlx::query("update households set owner_id=$2,data=jsonb_set(data,'{ownerId}',to_jsonb($2::text)),version=version+1 where id=$1").persistent(false).bind(h).bind(u.id).execute(&mut *tx).await?;
             tx.commit().await?;
             json!({"ok":true})
         }
@@ -423,7 +443,7 @@ async fn handle(
             let h = uuid(p, "householdId")?;
             access(&app, &u, h, true, true).await?;
             let deleting = c.action == "deleteHousehold";
-            sqlx::query("update households set deletion_at=case when $2 then coalesce(deletion_at,now()) else null end where id=$1 and (deletion_at is null or deletion_at>now()-interval '7 days')").bind(h).bind(deleting).execute(&app.db).await?;
+            sqlx::query("update households set deletion_at=case when $2 then coalesce(deletion_at,now()) else null end where id=$1 and (deletion_at is null or deletion_at>now()-interval '7 days')").persistent(false).bind(h).bind(deleting).execute(&app.db).await?;
             json!({"ok":true})
         }
         "pairKiosk" => {
@@ -435,12 +455,14 @@ async fn handle(
             }
             let mut tx = app.db.begin().await?;
             sqlx::query("select id from households where id=$1 for update")
+                .persistent(false)
                 .bind(h)
                 .execute(&mut *tx)
                 .await?;
             let count: i64 = sqlx::query_scalar(
                 "select count(*) from devices where household_id=$1 and revoked_at is null",
             )
+            .persistent(false)
             .bind(h)
             .fetch_one(&mut *tx)
             .await?;
@@ -458,7 +480,7 @@ async fn handle(
                 .map_err(|_| bad("Could not protect the PIN."))?
                 .to_string();
             let id = Uuid::new_v4();
-            sqlx::query("insert into devices(id,household_id,name,token_hash,pin_hash) values($1,$2,$3,$4,$5)").bind(id).bind(h).bind(text(p,"name")?).bind(hash(&token)).bind(pin_hash).execute(&mut *tx).await?;
+            sqlx::query("insert into devices(id,household_id,name,token_hash,pin_hash) values($1,$2,$3,$4,$5)").persistent(false).bind(id).bind(h).bind(text(p,"name")?).bind(hash(&token)).bind(pin_hash).execute(&mut *tx).await?;
             tx.commit().await?;
             json!({"token":token,"id":id,"householdId":h,"name":p["name"]})
         }
@@ -470,6 +492,7 @@ async fn handle(
             let row = sqlx::query(
                 "select pin_hash,attempts,locked_until from devices where id=$1 for update",
             )
+            .persistent(false)
             .bind(u.id)
             .fetch_one(&mut *tx)
             .await?;
@@ -490,13 +513,14 @@ async fn handle(
                     .is_ok()
             });
             if !valid {
-                sqlx::query("update devices set attempts=attempts+1,locked_until=case when attempts+1>=5 then now()+interval '15 minutes' else null end where id=$1").bind(u.id).execute(&mut *tx).await?;
+                sqlx::query("update devices set attempts=attempts+1,locked_until=case when attempts+1>=5 then now()+interval '15 minutes' else null end where id=$1").persistent(false).bind(u.id).execute(&mut *tx).await?;
                 tx.commit().await?;
                 return Err(bad(
                     "That PIN did not match. Try again or ask the owner to reset it.",
                 ));
             }
             sqlx::query("update devices set attempts=0,locked_until=null where id=$1")
+                .persistent(false)
                 .bind(u.id)
                 .execute(&mut *tx)
                 .await?;
@@ -506,6 +530,7 @@ async fn handle(
         "revokeKiosk" | "resetPin" => {
             let id = uuid(p, "deviceId")?;
             let h: Uuid = sqlx::query_scalar("select household_id from devices where id=$1")
+                .persistent(false)
                 .bind(id)
                 .fetch_optional(&app.db)
                 .await?
@@ -513,6 +538,7 @@ async fn handle(
             access(&app, &u, h, true, false).await?;
             if c.action == "revokeKiosk" {
                 sqlx::query("update devices set revoked_at=now() where id=$1")
+                    .persistent(false)
                     .bind(id)
                     .execute(&app.db)
                     .await?;
@@ -529,6 +555,7 @@ async fn handle(
                 sqlx::query(
                     "update devices set pin_hash=$2,attempts=0,locked_until=null where id=$1",
                 )
+                .persistent(false)
                 .bind(id)
                 .bind(ph)
                 .execute(&app.db)
@@ -542,6 +569,7 @@ async fn handle(
             }
             let count: i64 =
                 sqlx::query_scalar("select count(*) from households where owner_id=$1")
+                    .persistent(false)
                     .bind(u.id)
                     .fetch_one(&app.db)
                     .await?;
@@ -554,6 +582,7 @@ async fn handle(
             let url = std::env::var("SUPABASE_URL")
                 .map_err(|_| bad("Account services are unavailable."))?;
             sqlx::query("insert into account_deletions(user_id) values($1) on conflict do nothing")
+                .persistent(false)
                 .bind(u.id)
                 .execute(&app.db)
                 .await?;
@@ -573,10 +602,12 @@ async fn handle(
                 ));
             }
             sqlx::query("update account_deletions set auth_deleted=true where user_id=$1")
+                .persistent(false)
                 .bind(u.id)
                 .execute(&app.db)
                 .await?;
             sqlx::query("select anonymise_wag_account($1)")
+                .persistent(false)
                 .bind(u.id)
                 .execute(&app.db)
                 .await?;
@@ -591,11 +622,13 @@ async fn handle(
                 ));
             }
             sqlx::query("delete from push_subscriptions where household_id=$1 and user_id=$2")
+                .persistent(false)
                 .bind(h)
                 .bind(u.id)
                 .execute(&app.db)
                 .await?;
             sqlx::query("delete from memberships where household_id=$1 and user_id=$2")
+                .persistent(false)
                 .bind(h)
                 .bind(u.id)
                 .execute(&app.db)
@@ -605,13 +638,14 @@ async fn handle(
         "quarantineList" => {
             let h = uuid(p, "householdId")?;
             access(&app, &u, h, true, false).await?;
-            let rows=sqlx::query("select q.id,q.payload,q.created_at,coalesce(d.name,p.name,'Former caregiver') as name from quarantined_changes q left join devices d on d.id=q.device_id left join profiles p on p.id=q.user_id where q.household_id=$1 order by q.created_at").bind(h).fetch_all(&app.db).await?;
+            let rows=sqlx::query("select q.id,q.payload,q.created_at,coalesce(d.name,p.name,'Former caregiver') as name from quarantined_changes q left join devices d on d.id=q.device_id left join profiles p on p.id=q.user_id where q.household_id=$1 order by q.created_at").persistent(false).bind(h).fetch_all(&app.db).await?;
             json!(rows.into_iter().map(|r|json!({"id":r.get::<Uuid,_>("id"),"changes":r.get::<Value,_>("payload"),"device":r.get::<Option<String>,_>("name"),"at":r.get::<DateTime<Utc>,_>("created_at").to_rfc3339()})).collect::<Vec<_>>())
         }
         "quarantineDiscard" => {
             let h = uuid(p, "householdId")?;
             access(&app, &u, h, true, false).await?;
             sqlx::query("delete from quarantined_changes where id=$1 and household_id=$2")
+                .persistent(false)
                 .bind(uuid(p, "id")?)
                 .bind(h)
                 .execute(&app.db)
@@ -639,7 +673,7 @@ async fn handle(
             {
                 return Err(bad("This notification provider is not supported yet."));
             }
-            sqlx::query("insert into push_subscriptions(id,household_id,user_id,endpoint,subscription) values($1,$2,$3,$4,$5) on conflict(endpoint) do update set household_id=excluded.household_id,user_id=excluded.user_id,subscription=excluded.subscription").bind(Uuid::new_v4()).bind(h).bind(u.id).bind(endpoint).bind(subscription).execute(&app.db).await?;
+            sqlx::query("insert into push_subscriptions(id,household_id,user_id,endpoint,subscription) values($1,$2,$3,$4,$5) on conflict(endpoint) do update set household_id=excluded.household_id,user_id=excluded.user_id,subscription=excluded.subscription").persistent(false).bind(Uuid::new_v4()).bind(h).bind(u.id).bind(endpoint).bind(subscription).execute(&app.db).await?;
             json!({"ok":true})
         }
         "quarantine" => {
@@ -650,7 +684,7 @@ async fn handle(
                 (h, Some(u.id), None)
             } else {
                 let h = uuid(p, "householdId")?;
-                let former:bool=sqlx::query_scalar("select exists(select 1 from former_memberships where household_id=$1 and user_id=$2) and not exists(select 1 from memberships where household_id=$1 and user_id=$2)").bind(h).bind(u.id).fetch_one(&app.db).await?;
+                let former:bool=sqlx::query_scalar("select exists(select 1 from former_memberships where household_id=$1 and user_id=$2) and not exists(select 1 from memberships where household_id=$1 and user_id=$2)").persistent(false).bind(h).bind(u.id).fetch_one(&app.db).await?;
                 if !former {
                     return Err(denied());
                 }
@@ -663,7 +697,7 @@ async fn handle(
             if changes.len() > 100 {
                 return Err(bad("Recover at most 100 changes per batch."));
             }
-            sqlx::query("insert into quarantined_changes(id,household_id,device_id,user_id,payload) values($1,$2,$3,$4,$5) on conflict(id) do nothing").bind(id).bind(h).bind(device).bind(user).bind(&p["changes"]).execute(&app.db).await?;
+            sqlx::query("insert into quarantined_changes(id,household_id,device_id,user_id,payload) values($1,$2,$3,$4,$5) on conflict(id) do nothing").persistent(false).bind(id).bind(h).bind(device).bind(user).bind(&p["changes"]).execute(&app.db).await?;
             json!({"ok":true})
         }
         _ => return Err(bad("This action is not available.")),
@@ -678,11 +712,12 @@ async fn snapshot(app: &App, u: &Identity, all: bool) -> Result<Value> {
         sqlx::query(
             "select id,data,deletion_at from households where id=$1 and deletion_at is null",
         )
+        .persistent(false)
         .bind(h)
         .fetch_all(&app.db)
         .await?
     } else {
-        sqlx::query("select h.id,h.data,h.deletion_at from households h join memberships m on m.household_id=h.id where m.user_id=$1").bind(u.id).fetch_all(&app.db).await?
+        sqlx::query("select h.id,h.data,h.deletion_at from households h join memberships m on m.household_id=h.id where m.user_id=$1").persistent(false).bind(u.id).fetch_all(&app.db).await?
     };
     let mut result = json!({"households":[],"members":[],"events":[],"routines":[],"checks":[],"constraints":[],"preferences":[],"devices":[],"history":[],"transfers":[]});
     for h in hs {
@@ -699,7 +734,7 @@ async fn snapshot(app: &App, u: &Identity, all: bool) -> Result<Value> {
         if deleting.is_some() {
             continue;
         }
-        let rows=sqlx::query("select kind,data,actor_id from records where household_id=$1 and (deleted_at is null or deleted_at>now()-interval '30 days') order by updated_at").bind(id).fetch_all(&app.db).await?;
+        let rows=sqlx::query("select kind,data,actor_id from records where household_id=$1 and (deleted_at is null or deleted_at>now()-interval '30 days') order by updated_at").persistent(false).bind(id).fetch_all(&app.db).await?;
         for row in rows {
             let kind: String = row.get("kind");
             let mut d: Value = row.get("data");
@@ -716,7 +751,7 @@ async fn snapshot(app: &App, u: &Identity, all: bool) -> Result<Value> {
                     && ["outside", "play", "training", "crate", "sleep"]
                         .contains(&d["type"].as_str().unwrap_or(""));
                 if u.kiosk.is_some() {
-                    let today:bool=sqlx::query_scalar("select ($1::timestamptz at time zone $2)::date=(now() at time zone $2)::date").bind(d["at"].as_str().unwrap_or("")).bind(data["timezone"].as_str().unwrap_or("UTC")).fetch_one(&app.db).await?;
+                    let today:bool=sqlx::query_scalar("select ($1::timestamptz at time zone $2)::date=(now() at time zone $2)::date").persistent(false).bind(d["at"].as_str().unwrap_or("")).bind(data["timezone"].as_str().unwrap_or("UTC")).fetch_one(&app.db).await?;
                     if !today && !active {
                         continue;
                     }
@@ -743,10 +778,11 @@ async fn snapshot(app: &App, u: &Identity, all: bool) -> Result<Value> {
         if u.kiosk.is_some() {
             continue;
         }
-        for m in sqlx::query("select p.id,p.name,m.role from memberships m join profiles p on p.id=m.user_id where m.household_id=$1").bind(id).fetch_all(&app.db).await?{result["members"].as_array_mut().unwrap().push(json!({"id":m.get::<Uuid,_>("id"),"householdId":id,"name":m.get::<String,_>("name"),"role":m.get::<String,_>("role")}));}
-        for r in sqlx::query("select id,kind,record_id,actor,before_data,after_data,created_at from history where household_id=$1 and created_at>now()-interval '30 days' order by created_at desc limit 250").bind(id).fetch_all(&app.db).await?{result["history"].as_array_mut().unwrap().push(json!({"id":r.get::<Uuid,_>("id"),"entity":r.get::<String,_>("kind"),"recordId":r.get::<Uuid,_>("record_id"),"actor":r.get::<String,_>("actor"),"before":r.get::<Option<Value>,_>("before_data"),"after":r.get::<Value,_>("after_data"),"at":r.get::<DateTime<Utc>,_>("created_at").to_rfc3339()}));}
+        for m in sqlx::query("select p.id,p.name,m.role from memberships m join profiles p on p.id=m.user_id where m.household_id=$1").persistent(false).bind(id).fetch_all(&app.db).await?{result["members"].as_array_mut().unwrap().push(json!({"id":m.get::<Uuid,_>("id"),"householdId":id,"name":m.get::<String,_>("name"),"role":m.get::<String,_>("role")}));}
+        for r in sqlx::query("select id,kind,record_id,actor,before_data,after_data,created_at from history where household_id=$1 and created_at>now()-interval '30 days' order by created_at desc limit 250").persistent(false).bind(id).fetch_all(&app.db).await?{result["history"].as_array_mut().unwrap().push(json!({"id":r.get::<Uuid,_>("id"),"entity":r.get::<String,_>("kind"),"recordId":r.get::<Uuid,_>("record_id"),"actor":r.get::<String,_>("actor"),"before":r.get::<Option<Value>,_>("before_data"),"after":r.get::<Value,_>("after_data"),"at":r.get::<DateTime<Utc>,_>("created_at").to_rfc3339()}));}
         if data["ownerId"].as_str() == Some(&u.id.to_string()) {
             for d in sqlx::query("select id,name,revoked_at from devices where household_id=$1")
+                .persistent(false)
                 .bind(id)
                 .fetch_all(&app.db)
                 .await?
@@ -755,6 +791,7 @@ async fn snapshot(app: &App, u: &Identity, all: bool) -> Result<Value> {
             }
         }
         for t in sqlx::query("select to_user from transfers where household_id=$1 and to_user=$2")
+            .persistent(false)
             .bind(id)
             .bind(u.id)
             .fetch_all(&app.db)
@@ -786,12 +823,13 @@ async fn mutate(app: &App, u: &Identity, p: &Value) -> Result<Value> {
     }
     let mut tx = app.db.begin().await?;
     sqlx::query("select id from households where id=$1 for update")
+        .persistent(false)
         .bind(h)
         .execute(&mut *tx)
         .await?;
     // Recheck authorisation inside the household lock to close membership/revocation races.
     if let Some(k) = u.kiosk {
-        let active:bool=sqlx::query_scalar("select exists(select 1 from devices where id=$1 and household_id=$2 and revoked_at is null)").bind(u.id).bind(k).fetch_one(&mut *tx).await?;
+        let active:bool=sqlx::query_scalar("select exists(select 1 from devices where id=$1 and household_id=$2 and revoked_at is null)").persistent(false).bind(u.id).bind(k).fetch_one(&mut *tx).await?;
         if !active {
             return Err(denied());
         }
@@ -799,6 +837,7 @@ async fn mutate(app: &App, u: &Identity, p: &Value) -> Result<Value> {
         let active: bool = sqlx::query_scalar(
             "select exists(select 1 from memberships where household_id=$1 and user_id=$2)",
         )
+        .persistent(false)
         .bind(h)
         .bind(u.id)
         .fetch_one(&mut *tx)
@@ -810,6 +849,7 @@ async fn mutate(app: &App, u: &Identity, p: &Value) -> Result<Value> {
     let digest = hash(&p.to_string());
     if let Some(receipt) =
         sqlx::query("select actor_id,request_hash,result from mutation_receipts where id=$1")
+            .persistent(false)
             .bind(operation)
             .fetch_optional(&mut *tx)
             .await?
@@ -821,7 +861,7 @@ async fn mutate(app: &App, u: &Identity, p: &Value) -> Result<Value> {
         }
         return Ok(receipt.get("result"));
     }
-    let row=sqlx::query("select household_id,kind,data,version,created_at,deleted_at from records where id=$1 for update").bind(id).fetch_optional(&mut *tx).await?;
+    let row=sqlx::query("select household_id,kind,data,version,created_at,deleted_at from records where id=$1 for update").persistent(false).bind(id).fetch_optional(&mut *tx).await?;
     let before = row.as_ref().map(|r| r.get::<Value, _>("data"));
     let version = row
         .as_ref()
@@ -930,7 +970,7 @@ async fn mutate(app: &App, u: &Identity, p: &Value) -> Result<Value> {
                 && data["end"].is_null()
                 && ["outside", "play", "training", "crate", "sleep"].contains(&activity)
             {
-                let other=sqlx::query("select data from records where household_id=$1 and kind='event' and id<>$2 and deleted_at is null and data->>'type'=$3 and data->>'end' is null limit 1").bind(h).bind(id).bind(activity).fetch_optional(&mut *tx).await?;
+                let other=sqlx::query("select data from records where household_id=$1 and kind='event' and id<>$2 and deleted_at is null and data->>'type'=$3 and data->>'end' is null limit 1").persistent(false).bind(h).bind(id).bind(activity).fetch_optional(&mut *tx).await?;
                 if other.is_some() {
                     return Err(Failure(
                         StatusCode::CONFLICT,
@@ -948,7 +988,7 @@ async fn mutate(app: &App, u: &Identity, p: &Value) -> Result<Value> {
             ] {
                 if let Some(link) = data[field].as_str() {
                     let link = Uuid::parse_str(link).map_err(|_| bad("Invalid activity link."))?;
-                    let linked=sqlx::query("select data from records where id=$1 and household_id=$2 and kind='event' and deleted_at is null and data->>'type'=$3").bind(link).bind(h).bind(target_type).fetch_optional(&mut *tx).await?.ok_or_else(||bad("The linked activity is unavailable."))?;
+                    let linked=sqlx::query("select data from records where id=$1 and household_id=$2 and kind='event' and deleted_at is null and data->>'type'=$3").persistent(false).bind(link).bind(h).bind(target_type).fetch_optional(&mut *tx).await?.ok_or_else(||bad("The linked activity is unavailable."))?;
                     if field == "tripId" && linked.get::<Value, _>("data")["outcome"] == "no-result"
                     {
                         return Err(bad(
@@ -963,7 +1003,7 @@ async fn mutate(app: &App, u: &Identity, p: &Value) -> Result<Value> {
                     return Err(bad("Invalid planned activity link."));
                 }
                 let rid = Uuid::parse_str(parts[0]).map_err(|_| bad("Invalid routine link."))?;
-                let plan_row=sqlx::query("select data from records where id=$1 and household_id=$2 and kind='routine' and deleted_at is null").bind(rid).bind(h).fetch_optional(&mut *tx).await?.ok_or_else(||bad("The linked routine is unavailable."))?;
+                let plan_row=sqlx::query("select data from records where id=$1 and household_id=$2 and kind='routine' and deleted_at is null").persistent(false).bind(rid).bind(h).fetch_optional(&mut *tx).await?.ok_or_else(||bad("The linked routine is unavailable."))?;
                 let plan_data: Value = plan_row.get("data");
                 let eligible = plan_data["items"].as_array().is_some_and(|items| {
                     items
@@ -973,7 +1013,7 @@ async fn mutate(app: &App, u: &Identity, p: &Value) -> Result<Value> {
                 if !eligible {
                     return Err(bad("The planned activity does not match this record."));
                 }
-                let used:bool=sqlx::query_scalar("select exists(select 1 from records where household_id=$1 and kind='event' and id<>$2 and deleted_at is null and data->>'planId'=$3)").bind(h).bind(id).bind(plan).fetch_one(&mut *tx).await?;
+                let used:bool=sqlx::query_scalar("select exists(select 1 from records where household_id=$1 and kind='event' and id<>$2 and deleted_at is null and data->>'planId'=$3)").persistent(false).bind(h).bind(id).bind(plan).fetch_one(&mut *tx).await?;
                 if used {
                     return Err(Failure(
                         StatusCode::CONFLICT,
@@ -984,7 +1024,7 @@ async fn mutate(app: &App, u: &Identity, p: &Value) -> Result<Value> {
                 }
             }
             if data["outcome"] == "no-result" {
-                let linked:bool=sqlx::query_scalar("select exists(select 1 from records where household_id=$1 and kind='event' and deleted_at is null and data->>'tripId'=$2)").bind(h).bind(id.to_string()).fetch_one(&mut *tx).await?;
+                let linked:bool=sqlx::query_scalar("select exists(select 1 from records where household_id=$1 and kind='event' and deleted_at is null and data->>'tripId'=$2)").persistent(false).bind(h).bind(id.to_string()).fetch_one(&mut *tx).await?;
                 if linked {
                     return Err(bad(
                         "This trip has potty events. Remove their links before marking no result.",
@@ -1000,6 +1040,7 @@ async fn mutate(app: &App, u: &Identity, p: &Value) -> Result<Value> {
             }
             let local_today: String =
                 sqlx::query_scalar("select to_char(now() at time zone $1,'YYYY-MM-DD')")
+                    .persistent(false)
                     .bind(hh["timezone"].as_str().unwrap_or("UTC"))
                     .fetch_one(&mut *tx)
                     .await?;
@@ -1019,7 +1060,7 @@ async fn mutate(app: &App, u: &Identity, p: &Value) -> Result<Value> {
             if items.len() > 100 {
                 return Err(bad("Keep routines to 100 items or fewer."));
             }
-            let constraints=sqlx::query("select data from records where household_id=$1 and kind='constraint' and deleted_at is null").bind(h).fetch_all(&mut *tx).await?;
+            let constraints=sqlx::query("select data from records where household_id=$1 and kind='constraint' and deleted_at is null").persistent(false).bind(h).fetch_all(&mut *tx).await?;
             for item in items {
                 let time = item["time"].as_str().unwrap_or("");
                 if chrono::NaiveTime::parse_from_str(time, "%H:%M").is_err() {
@@ -1076,7 +1117,7 @@ async fn mutate(app: &App, u: &Identity, p: &Value) -> Result<Value> {
                 }
             }
             if version == 0 {
-                let latest=sqlx::query("select id,data from records where household_id=$1 and kind='routine' and deleted_at is null order by created_at desc limit 1").bind(h).fetch_optional(&mut *tx).await?;
+                let latest=sqlx::query("select id,data from records where household_id=$1 and kind='routine' and deleted_at is null order by created_at desc limit 1").persistent(false).bind(h).fetch_optional(&mut *tx).await?;
                 if let Some(l) = latest {
                     if data["baseRoutineId"].as_str() != Some(&l.get::<Uuid, _>("id").to_string()) {
                         return Err(Failure(StatusCode::CONFLICT,"The routine changed while you were editing. Review the latest routine.".into(),Some(l.get("data"))));
@@ -1094,7 +1135,7 @@ async fn mutate(app: &App, u: &Identity, p: &Value) -> Result<Value> {
                     return Err(denied());
                 }
             }
-            let duplicate:bool=sqlx::query_scalar("select exists(select 1 from records where household_id=$1 and kind='preference' and actor_id=$2 and id<>$3 and deleted_at is null)").bind(h).bind(u.id).bind(id).fetch_one(&mut *tx).await?;
+            let duplicate:bool=sqlx::query_scalar("select exists(select 1 from records where household_id=$1 and kind='preference' and actor_id=$2 and id<>$3 and deleted_at is null)").persistent(false).bind(h).bind(u.id).bind(id).fetch_one(&mut *tx).await?;
             if duplicate {
                 return Err(bad(
                     "Refresh your reminder preferences before changing them.",
@@ -1134,10 +1175,10 @@ async fn mutate(app: &App, u: &Identity, p: &Value) -> Result<Value> {
     if let Some(t) = deleted {
         data["deletedAt"] = json!(t.to_rfc3339());
     }
-    sqlx::query("insert into records(id,household_id,kind,data,version,actor_id,deleted_at) values($1,$2,$3,$4,$5,$6,$7) on conflict(id) do update set data=excluded.data,version=excluded.version,actor_id=excluded.actor_id,updated_at=now(),deleted_at=excluded.deleted_at").bind(id).bind(h).bind(kind).bind(&data).bind(version+1).bind(u.id).bind(deleted).execute(&mut *tx).await?;
-    sqlx::query("insert into history(id,household_id,kind,record_id,actor,before_data,after_data,actor_id) values($1,$2,$3,$4,$5,$6,$7,$8)").bind(operation).bind(h).bind(kind).bind(id).bind(&u.name).bind(&before).bind(&data).bind(u.id).execute(&mut *tx).await?;
+    sqlx::query("insert into records(id,household_id,kind,data,version,actor_id,deleted_at) values($1,$2,$3,$4,$5,$6,$7) on conflict(id) do update set data=excluded.data,version=excluded.version,actor_id=excluded.actor_id,updated_at=now(),deleted_at=excluded.deleted_at").persistent(false).bind(id).bind(h).bind(kind).bind(&data).bind(version+1).bind(u.id).bind(deleted).execute(&mut *tx).await?;
+    sqlx::query("insert into history(id,household_id,kind,record_id,actor,before_data,after_data,actor_id) values($1,$2,$3,$4,$5,$6,$7,$8)").persistent(false).bind(operation).bind(h).bind(kind).bind(id).bind(&u.name).bind(&before).bind(&data).bind(u.id).execute(&mut *tx).await?;
     let result = json!({"record":data});
-    sqlx::query("insert into mutation_receipts(id,household_id,actor_id,request_hash,result) values($1,$2,$3,$4,$5)").bind(operation).bind(h).bind(u.id).bind(digest).bind(&result).execute(&mut *tx).await?;
+    sqlx::query("insert into mutation_receipts(id,household_id,actor_id,request_hash,result) values($1,$2,$3,$4,$5)").persistent(false).bind(operation).bind(h).bind(u.id).bind(digest).bind(&result).execute(&mut *tx).await?;
     tx.commit().await?;
     Ok(result)
 }

@@ -4,15 +4,17 @@ The app can be explored locally now. Production requires the service connections
 
 ## 1. Vercel project
 
-The project has been created in `silentsoars-projects` and connected to `ppsandwich/Wag-Journal`. Its first deployment is https://wag-journal.vercel.app. It currently provides the sample diary; real accounts still need Supabase environment variables. Vercel assigned the first deployment to production automatically. The team was already on Pro; no plan upgrade was purchased.
+The project has been created in `silentsoars-projects` and connected to `ppsandwich/Wag-Journal`. The live application is https://wag-journal.vercel.app. Supabase and reminder credentials are configured in Production; Preview remains a sample-only environment to avoid sharing production data. Vercel assigned the first deployment to production automatically. The team was already on Pro; no plan upgrade was purchased.
 
 The product is intended to become commercial. Confirm a suitable Vercel plan and its cost; free signup does not establish Hobby eligibility. Use the provisional A$100 monthly total as a planning ceiling, not a guarantee of service cost.
 
 The local Vercel build passes with two function artifacts (limit: 12), and the hosted Rust `/api/app` endpoint returns HTTP 200. The reminder endpoint rejects unauthorised requests with HTTP 401. After setting service variables, redeploy and test the authenticated workflows. For local Vercel builds install `cargo-zigbuild` and Zig; this workspace uses `CARGO_ZIGBUILD_ZIG_COMMAND=/home/dylan/.local/bin/python-zig` when running the build.
 
-## 2. Connect Supabase
+## 2. Supabase and email delivery
 
-Create or select a Supabase project and choose an appropriate region and backup plan. Supply values through local environment files or Vercel's environment settings, not chat:
+A separate free project, `gpvfklevabyoafamuron`, is running in Sydney. All migrations have been applied. Magic-Seeker was paused with the owner's explicit approval to free an active-project slot; remembrall was left running. The generated password is stored in `.env.supabase.local`; deployment credentials are in `.env.cloud.local`. Both files are git-ignored and permission-restricted.
+
+These values have been configured in Vercel Production:
 
 | Variable | Where used | Value |
 | --- | --- | --- |
@@ -27,30 +29,21 @@ Never prefix a database password, service-role key or other secret with `VITE_`.
 
 Run `npm run db:migrate` with the managed `DATABASE_URL` supplied securely. The migration command applies all numbered SQL files. The application tables intentionally have no public RLS policies; direct browser Data API access is denied.
 
-Enable email confirmation. Configure the production site URL and allowed redirect URLs, including `/` and the recovery destination. Set password and authentication rate-limit policies. Configure custom SMTP; use a verified sender domain and an email provider such as Resend. Confirm signup, recovery and invitation acceptance using two real test accounts. Invitations currently generate a single-use link to share with the intended email recipient; they are not automatically emailed.
+Email confirmation is enabled, and the site URL and redirect allowlist point to the live app. **Custom SMTP remains outstanding.** Select a sender address and verified domain, connect the provider in Supabase Auth → Emails → SMTP Settings, then verify signup and recovery delivery. Set `VITE_EMAIL_READY=true` in Vercel Production and redeploy only once delivery is verified; until then, the app disables new signup and recovery while allowing existing accounts to sign in. Review password and authentication rate-limit policies before public signup. Invitations currently generate a single-use link to share with the intended email recipient; they are not automatically emailed.
 
 **Never set `LOCAL_DEV_AUTH=true` in deployment.** The API also refuses this bypass whenever `VERCEL` is present. It exists only for isolated localhost integration tests.
 
-## 3. Enable notifications and maintenance
+## 3. Notifications and maintenance
 
-Notification keys have been generated locally in `.env.keys.local`, which is git-ignored and permission-restricted. Keep those keys stable; rotating the VAPID key invalidates existing subscriptions. `npm run keys` generates a file only if one does not exist.
+The existing Vercel team is on Pro. `vercel.json` schedules `/api/reminders` every minute and runs functions in Sydney. [Vercel Pro supports minute-level cron](https://vercel.com/docs/cron-jobs/usage-and-pricing), so no QStash account or new subscription was needed. Function usage still applies.
 
-Set these Vercel variables from that file:
+VAPID keys, `APP_ORIGIN`, `VAPID_SUBJECT`, `REMINDER_SECRET` and `CRON_SECRET` have been configured in Production. `VAPID_SUBJECT` is the live app URL. Keys are also stored in ignored `.env.keys.local`; keep them stable because rotating VAPID keys invalidates existing subscriptions. The authenticated maintenance endpoint returns 200. Never place the cron secret in a URL.
 
-- `VAPID_PUBLIC_KEY`
-- `VITE_VAPID_PUBLIC_KEY`
-- `VAPID_PRIVATE_KEY`
-- `REMINDER_SECRET`
+The worker purges expired household deletions and 30-day record history. Monitor failed runs and verify actual scheduled invocations in Vercel. Managed backup retention and restore guarantees still need an operational plan; the free Supabase project is not a validated production backup strategy. A local restore drill is not a substitute for that plan.
 
-Set `VAPID_SUBJECT` to the actual support `mailto:` address and `APP_ORIGIN` to the HTTPS deployment URL.
+Budget for 43,200 cron invocations per 30-day month, plus usage from the app. Check usage and alerts against the provisional A$100 monthly budget. No paid plan was purchased or upgraded during setup.
 
-Create an Upstash QStash schedule that POSTs to `https://YOUR-DOMAIN/api/reminders` once per minute (`* * * * *`). Forward `Authorization: Bearer REMINDER_SECRET` as a destination header. The shared bearer secret is validated by the function; never place it in a URL. Allow access through any Vercel deployment protection using the provider's supported protected-deployment configuration rather than disabling protection accidentally.
-
-Budget for 43,200 scheduler calls per 30-day month, plus retries and delivery volume. Recheck provider pricing before enabling paid usage. A once-per-minute sweep exceeds a 1,000-delivery/day allowance.
-
-The worker also purges expired household deletions and 30-day record history. Monitor failed runs; maintenance must not silently stop. Verify deleted data is not reintroduced after a backup restore. Managed backup expiry must be configured and tested separately.
-
-On iPhone/iPad, test from the installed Home Screen app with permission granted. Confirm reminders with the app closed, personal mute, quiet hours, snooze, completion cancellation and stale-reminder suppression. Verify at least two caregivers and two devices.
+On iPhone/iPad, test from the installed Home Screen app with permission granted. Confirm reminders with the app closed, personal mute, quiet hours, snooze, completion cancellation and stale-reminder suppression. Verify at least two caregivers and two devices. Actual push delivery to physical phones remains unverified.
 
 ## 4. Finish the content and public-release gates
 
@@ -96,3 +89,13 @@ npm audit --omit=dev
 ```
 
 `test:api` needs the locally running API with `LOCAL_DEV_AUTH=true` and a dedicated test database. It creates and deletes only its own random test households. `test:restore` uses the named local Docker container and a disposable restore database; it never restores over the source database.
+
+## Managed smoke tests
+
+The nine-check hosted suite creates two temporary, pre-confirmed Supabase accounts without sending emails. It checks the real deployment, sharing, conflicts, deletion/anonymisation and public Data API isolation, then removes its test accounts and household. It is opt-in and requires the ignored deployment environment:
+
+```bash
+WAG_HOSTED_TEST=true node --env-file=.env.cloud.local scripts/test-hosted.mjs
+```
+
+Do not repurpose those test credentials as real caregiver accounts.

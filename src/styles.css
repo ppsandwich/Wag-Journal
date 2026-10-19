@@ -2673,3 +2673,24 @@ th {
   border-style: dotted;
   background: #e8d7b0;
 }
+
+.app-update {
+  position: fixed;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(92vw, 640px);
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 36px #243b3026;
+  border-radius: 18px;
+  z-index: 2000;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.app-update p {
+  margin: 6px 0;
+  font-size: 14px;
+}

@@ -5,6 +5,9 @@ import { createHandlerBoundToURL } from "workbox-precaching";
 declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<any> };
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") void self.skipWaiting();
+});
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL("/index.html"), {
     denylist: [/^\/api\//],
@@ -18,7 +21,7 @@ self.addEventListener("push", (event) => {
     event.waitUntil(
       self.registration.showNotification(data.title || "Wag Journal", {
         body: data.body || "An activity is coming up.",
-        icon: "/icon.svg",
+        icon: "/icon-192.png",
         tag: data.tag || "wag-reminder",
         data: { url: "/" },
       }),

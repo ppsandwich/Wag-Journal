@@ -3,11 +3,11 @@
 ## Implemented stack
 
 - **Client:** React 19, TypeScript and Vite. Original CSS follows the PRD's paper/eucalyptus palette, Fraunces headings and Atkinson Hyperlegible body text. Fonts are served locally.
-- **API:** Rust, Axum and the official `vercel_runtime` adapter. The same binary runs on localhost and as one Vercel function. The local runtime, database and permission tests pass; Vercel deployment and the public health route are verified; hosted authenticated flows still need Supabase configuration.
-- **Database:** PostgreSQL, accessed only by the server through SQLx. Supabase is the selected authentication integration and intended managed PostgreSQL host. Use its transaction-pooler connection with an appropriate connection limit.
+- **API:** Rust, Axum and the official `vercel_runtime` adapter. The same binary runs on localhost and as one Vercel function. The local runtime, database and permission tests pass; Vercel deployment and the public health route are verified; hosted authenticated flows pass the nine-check managed smoke suite.
+- **Database:** PostgreSQL, accessed only by the server through SQLx. Supabase is the selected authentication integration and intended managed PostgreSQL host. The Sydney project uses its transaction pooler. SQLx queries explicitly disable persistent named statements; the Node worker uses prepare:false.
 - **Authentication:** Supabase verified email/password and recovery. The API checks bearer tokens against Supabase's user endpoint rather than trusting a client-supplied user ID. Personal account deletion uses a server-only administration key.
 - **Offline:** IndexedDB stores an account/device-partitioned snapshot and mutation queue. The queue write and optimistic snapshot update share one transaction. Web Locks serialises sync across tabs. A service worker precaches only public app assets; private API responses are never cached there.
-- **Reminders:** A second Vercel function uses PostgreSQL and Web Push. QStash is the intended minute scheduler, forwarding a dedicated bearer secret. No Vercel Hobby cron or open browser is required. Actual provider delivery remains unverified.
+- **Reminders:** A second Vercel function uses PostgreSQL and Web Push. The existing Vercel Pro team runs a minute-level cron with a dedicated bearer secret. The worker accepts GET for Vercel Cron or POST for an alternate scheduler. Actual phone delivery remains unverified.
 - **Exports:** CSV with formula-safe cells, plus downloadable PDFs with an embedded, locally hosted font. All-date export requests are authenticated and require connectivity and a resolved queue.
 
 There are two API source entrypoints: `api/app.rs` and `api/reminders.ts`. The build checks their count. Run the same check after `vercel build` to enforce the separate deployed-function-artifact ceiling.
@@ -46,7 +46,7 @@ Summaries distinguish unknown outcomes, estimates, confirmed durations and incom
 
 ## Known production limits
 
-- Hosted auth, real email and closed-app phone push still need end-to-end verification with actual service accounts.
+- Real email and closed-app phone push still need end-to-end verification; hosted password sessions, sharing and account deletion have passed with temporary real Supabase accounts.
 - Snapshot polling targets four-second refresh while online. A large history or many concurrent households will need incremental pagination rather than full snapshots.
 - Reminder delivery uses a claim/retry ledger and rechecks completion, membership and personal mute immediately before sending. Provider handoff cannot be atomic with database edits or prove delivery. Cross-platform dismissal of already delivered notifications is not promised.
 - Credential/session lifetimes follow Supabase configuration and need production review. Account-deletion recovery jobs and managed backup deletion must be exercised against the selected provider.

@@ -17,13 +17,13 @@
 
 The local production build and 29 domain/storage tests pass. The API integration suite exercises live Rust HTTP handlers against PostgreSQL; it covers permissions, duplicate retries, conflicts, shared sessions, kiosk restrictions, invitation acceptance and household deletion. The restore drill restores a separate disposable database and checks a sentinel diary entry and RLS. These are development checks, not proof of a configured managed backup service.
 
-Browser checks covered sample logging, navigation, phone-width overflow and a generated PDF. The production app shell and saved sample diary reloaded successfully after the local preview server was stopped. Real Supabase email flows, multiple physical devices, installed iOS push delivery and production serverless routing need connected services and device testing.
+Browser checks covered sample logging, navigation, phone-width overflow and a generated PDF. The production app shell and saved sample diary reloaded successfully after the local preview server was stopped. The nine-check hosted suite passes real Supabase password sessions, managed database persistence, sharing, concurrent edits, account deletion/anonymisation and public Data API isolation. Email delivery and physical-device push testing remain outstanding.
 
-Both source entrypoints and built Vercel function artifacts count 2/12. The hosted Rust health route returns 200, and the unauthorised reminder request returns 401. The app is deployed at https://wag-journal.vercel.app; Supabase and reminder delivery are not yet connected.
+Both source entrypoints and built Vercel function artifacts count 2/12. The hosted Rust health route returns 200, and the unauthorised reminder request returns 401. The app is deployed at https://wag-journal.vercel.app; Supabase and the minute-level Vercel Cron worker are connected; authenticated maintenance returns 200. Physical-device notification delivery remains unverified.
 
 ## Remaining implementation and release work
 
-1. Connect and verify Supabase, SMTP and a minute-level scheduler. Run end-to-end tests with two real caregiver accounts. Verify revoked sessions, recovery redirects, offline reconnect and cross-device conflict resolution in production.
+1. Connect custom SMTP, verify signup/recovery delivery, then enable `VITE_EMAIL_READY`. Hosted tests with two temporary accounts pass. Complete physical-device testing of revoked sessions, recovery links, offline reconnect and conflict resolution.
 2. Qualified review and source/licence approval are required before enabling starting care templates and automated routine suggestions. Those features are deliberately unavailable; the current Patterns screen gives descriptive observations. Before/after suggestion experiments are not implemented.
 3. Duration charts include cross-midnight bands and an individual-record table. Validate readability with dense household histories and daylight-saving transition days during the pilot.
 4. Validate free-text care instructions operationally. Structured earliest/latest time constraints are enforced; software cannot infer restrictions from arbitrary prose or guarantee a relative prompt complies with such prose.

@@ -6,6 +6,7 @@ import "@fontsource/atkinson-hyperlegible/latin-400.css";
 import "@fontsource/atkinson-hyperlegible/latin-700.css";
 import "./styles.css";
 import App from "./App";
+import { AppUpdate } from "./components/AppUpdate";
 import { JournalProvider } from "./lib/context";
 class Boundary extends React.Component<
   { children: React.ReactNode },
@@ -40,6 +41,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       </a>
       <JournalProvider>
         <App />
+        <AppUpdate />
       </JournalProvider>
     </Boundary>
   </React.StrictMode>,

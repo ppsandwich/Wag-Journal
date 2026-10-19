@@ -5,7 +5,8 @@ import { day, addDays, occurrences, clock, labels } from "../src/lib/domain.js";
 import type { Event, Routine, Preference } from "../src/lib/domain.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-/** QStash calls this endpoint once a minute, forwarding Authorization: Bearer REMINDER_SECRET.
+/** Vercel Pro Cron calls this endpoint each minute with Authorization: Bearer CRON_SECRET.
+ * A POST scheduler may use REMINDER_SECRET as a fallback.
  * Claim each endpoint/occurrence atomically. A failed send is retried until the occurrence expires.
  * Push is best-effort: a successful provider handoff is not proof of delivery to a phone.
  */
@@ -15,7 +16,7 @@ export default async function handler(
 ) {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Content-Type", "application/json");
-  const secret = process.env.REMINDER_SECRET,
+  const secret = process.env.CRON_SECRET || process.env.REMINDER_SECRET,
     provided = req.headers.authorization || "";
   const expected = secret ? `Bearer ${secret}` : "";
   if (
@@ -27,9 +28,9 @@ export default async function handler(
     res.end(JSON.stringify({ error: "Unauthorised" }));
     return;
   }
-  if (req.method !== "POST") {
+  if (req.method !== "POST" && req.method !== "GET") {
     res.statusCode = 405;
-    res.end(JSON.stringify({ error: "Use POST" }));
+    res.end(JSON.stringify({ error: "Use GET or POST" }));
     return;
   }
   if (!process.env.DATABASE_URL) {

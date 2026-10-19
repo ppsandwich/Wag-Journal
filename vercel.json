@@ -39,5 +39,14 @@
         }
       ]
     }
+  ],
+  "regions": [
+    "syd1"
+  ],
+  "crons": [
+    {
+      "path": "/api/reminders",
+      "schedule": "* * * * *"
+    }
   ]
 }
