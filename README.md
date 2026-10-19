@@ -2,7 +2,24 @@
 
 A shared puppy diary for quick activity logging, practical routines and understandable patterns.
 
-- [Product requirements](PRD_PUPPY_DIARY.md): confirmed scope, behaviour and acceptance criteria.
-- [Implementation and readiness checklist](IMPLEMENTATION_READINESS.md): outstanding technical, content and release work, with a trace of all 46 accepted interview decisions.
+The app is deployed at **https://wag-journal.vercel.app** with a responsive React interface, an offline diary, a Rust API and a Sydney Supabase database. The reminder/maintenance cron runs each minute. Email delivery and physical-device/pilot checks remain release gates; new signup stays disabled until SMTP is verified. The fictional sample diary works without credentials.
 
-Status: requirements confirmed; app implementation and release validation pending.
+```bash
+npm ci
+npm run dev
+```
+
+Open http://localhost:5173 and choose **Meet Alfie’s sample diary**.
+
+- [Deployment and owner actions](docs/DEPLOYMENT.md)
+- [Implementation status and remaining release checks](docs/IMPLEMENTATION_STATUS.md)
+- [Architecture and security boundaries](docs/ARCHITECTURE.md)
+- [Product requirements](PRD_PUPPY_DIARY.md)
+- [Original readiness checklist and 46 interview decisions](IMPLEMENTATION_READINESS.md)
+
+```bash
+npm run check
+cargo test --locked
+```
+
+See the deployment guide for the database, API integration and restore tests. Do not enable the localhost test authentication bypass in deployment.

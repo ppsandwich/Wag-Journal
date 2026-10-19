@@ -1,0 +1,45 @@
+name: Check Wag Journal
+on:
+  push:
+  pull_request:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: wag
+          POSTGRES_PASSWORD: wag_test_only
+          POSTGRES_DB: wag
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wag"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://wag:wag_test_only@localhost:5432/wag
+      LOCAL_DEV_AUTH: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - run: npm run check
+      - run: npm audit --omit=dev --audit-level=high
+      - run: cargo fmt --check
+      - run: cargo test --locked
+      - run: npm run db:migrate
+      - run: |
+          cargo run --locked --bin wag-api > /tmp/wag-api.log 2>&1 &
+          for attempt in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:3001/api/app > /dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/test-api.mjs

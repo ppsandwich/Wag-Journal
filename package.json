@@ -1,0 +1,50 @@
+{
+  "name": "wag-journal",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build && node scripts/check-budget.mjs",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "vitest run",
+    "check": "npm run test && npm run build",
+    "api": "cargo run --bin wag-api",
+    "db:migrate": "node scripts/migrate.mjs",
+    "test:api": "node scripts/test-api.mjs",
+    "test:restore": "node scripts/test-restore.mjs",
+    "keys": "node scripts/generate-keys.mjs",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"api/*.ts\" \"tests/*.ts\" \"scripts/*.mjs\" && cargo fmt"
+  },
+  "dependencies": {
+    "@fontsource/atkinson-hyperlegible": "^5.2.8",
+    "@fontsource/fraunces": "^5.2.8",
+    "@js-temporal/polyfill": "^0.5.1",
+    "@supabase/supabase-js": "^2.0.0",
+    "idb": "^8.0.3",
+    "jspdf": "^4.2.1",
+    "lucide-react": "^0.468.0",
+    "postgres": "^3.4.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "web-push": "^3.6.7",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/web-push": "^3.6.4",
+    "@vitejs/plugin-react": "^5.0.0",
+    "@vitest/coverage-v8": "^4.1.12",
+    "fake-indexeddb": "^6.0.0",
+    "prettier": "^3.9.10",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.0",
+    "vite-plugin-pwa": "^1.0.3",
+    "vitest": "^4.1.12"
+  },
+  "engines": {
+    "node": "22.x"
+  }
+}
