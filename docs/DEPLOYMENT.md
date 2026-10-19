@@ -39,7 +39,7 @@ The existing Vercel team is on Pro. `vercel.json` schedules `/api/reminders` eve
 
 VAPID keys, `APP_ORIGIN`, `VAPID_SUBJECT`, `REMINDER_SECRET` and `CRON_SECRET` have been configured in Production. `VAPID_SUBJECT` is the live app URL. Keys are also stored in ignored `.env.keys.local`; keep them stable because rotating VAPID keys invalidates existing subscriptions. The authenticated maintenance endpoint returns 200. Never place the cron secret in a URL.
 
-The worker purges expired household deletions and 30-day record history. Monitor failed runs and verify actual scheduled invocations in Vercel. Managed backup retention and restore guarantees still need an operational plan; the free Supabase project is not a validated production backup strategy. A local restore drill is not a substitute for that plan.
+The worker purges expired household deletions and 30-day record history. Vercel logs confirm successful scheduled invocations; monitor failed runs as usage grows. Managed backup retention and restore guarantees still need an operational plan; the free Supabase project is not a validated production backup strategy. A local restore drill is not a substitute for that plan.
 
 Budget for 43,200 cron invocations per 30-day month, plus usage from the app. Check usage and alerts against the provisional A$100 monthly budget. No paid plan was purchased or upgraded during setup.
 
@@ -99,3 +99,14 @@ WAG_HOSTED_TEST=true node --env-file=.env.cloud.local scripts/test-hosted.mjs
 ```
 
 Do not repurpose those test credentials as real caregiver accounts.
+
+## Owner checklist
+
+1. Choose the email sender/domain and connect custom SMTP. Verify confirmation and recovery, then enable `VITE_EMAIL_READY` and redeploy. No email provider credentials are currently configured.
+2. Create your permanent caregiver account through the app after email is ready. The temporary verification accounts have been deleted.
+3. Review and merge [implementation PR #1](https://github.com/ppsandwich/Wag-Journal/pull/1). Production currently runs the tested implementation branch; merging records that implementation on `main` for future deployments.
+4. Install the app on your intended phone and kiosk, enable notifications and complete the physical-device checklist above.
+5. Arrange qualified care-content review and the 5–10-household pilot. Starting templates and automated suggestions remain unavailable pending reviewed rules and evidence.
+6. Establish the operator/support identity, privacy wording, managed backups and restore/retention plan, then check service usage alerts and costs before public release.
+
+Magic-Seeker remains paused as explicitly requested. No existing project was deleted and no paid service plan was purchased.

@@ -2,7 +2,7 @@
 
 A shared puppy diary for quick activity logging, practical routines and understandable patterns.
 
-The app is implemented locally with a responsive React interface, an offline diary, a Rust API and PostgreSQL storage. Live accounts and background notifications require the deployment connections below. The fictional sample diary works without credentials.
+The app is deployed at **https://wag-journal.vercel.app** with a responsive React interface, an offline diary, a Rust API and a Sydney Supabase database. The reminder/maintenance cron runs each minute. Email delivery and physical-device/pilot checks remain release gates; new signup stays disabled until SMTP is verified. The fictional sample diary works without credentials.
 
 ```bash
 npm ci
