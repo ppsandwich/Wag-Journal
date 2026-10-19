@@ -1,0 +1,30 @@
+begin;
+create table if not exists profiles(id uuid primary key, email text not null, name text not null, created_at timestamptz not null default now());
+create table if not exists households(id uuid primary key, owner_id uuid not null references profiles(id), data jsonb not null, version integer not null default 1, deletion_at timestamptz, created_at timestamptz not null default now());
+create table if not exists memberships(household_id uuid not null references households(id) on delete cascade,user_id uuid not null references profiles(id),role text not null check(role in ('owner','caregiver')),primary key(household_id,user_id));
+create table if not exists records(id uuid primary key,household_id uuid not null references households(id) on delete cascade,kind text not null check(kind in ('event','routine','check','constraint','preference')),data jsonb not null,version integer not null default 1,actor_id uuid,created_at timestamptz not null default now(),updated_at timestamptz not null default now(),deleted_at timestamptz);
+create index if not exists records_household_kind on records(household_id,kind);
+create index if not exists records_activity_time on records(household_id,(data->>'at')) where kind='event';
+create table if not exists history(id uuid primary key,household_id uuid not null references households(id) on delete cascade,kind text not null,record_id uuid not null,actor text not null,before_data jsonb,after_data jsonb not null,created_at timestamptz not null default now());
+create table if not exists mutation_receipts(id uuid primary key,household_id uuid not null references households(id) on delete cascade,actor_id uuid not null,request_hash text not null,result jsonb not null,created_at timestamptz not null default now());
+create table if not exists invitations(id uuid primary key,household_id uuid not null references households(id) on delete cascade,email text not null,token_hash text unique not null,expires_at timestamptz not null default now()+interval '7 days',accepted_at timestamptz,created_at timestamptz not null default now());
+create table if not exists devices(id uuid primary key,household_id uuid not null references households(id) on delete cascade,name text not null,token_hash text unique not null,pin_hash text not null,attempts integer not null default 0,locked_until timestamptz,revoked_at timestamptz,created_at timestamptz not null default now());
+create table if not exists transfers(household_id uuid primary key references households(id) on delete cascade,to_user uuid not null references profiles(id),created_at timestamptz not null default now());
+create table if not exists push_subscriptions(id uuid primary key,household_id uuid not null references households(id) on delete cascade,user_id uuid not null references profiles(id),endpoint text unique not null,subscription jsonb not null,created_at timestamptz not null default now());
+create table if not exists reminder_deliveries(id text primary key,household_id uuid not null references households(id) on delete cascade,user_id uuid not null references profiles(id),status text not null default 'claimed',claimed_at timestamptz not null default now(),sent_at timestamptz,expires_at timestamptz not null);
+create table if not exists quarantined_changes(id uuid primary key,household_id uuid not null references households(id) on delete cascade,device_id uuid references devices(id),payload jsonb not null,created_at timestamptz not null default now());
+-- Clients never receive database credentials. The Rust API authorises all access.
+-- RLS also denies access through Supabase's public Data API without explicit policies.
+alter table profiles enable row level security;
+alter table households enable row level security;
+alter table memberships enable row level security;
+alter table records enable row level security;
+alter table history enable row level security;
+alter table mutation_receipts enable row level security;
+alter table invitations enable row level security;
+alter table devices enable row level security;
+alter table transfers enable row level security;
+alter table push_subscriptions enable row level security;
+alter table reminder_deliveries enable row level security;
+alter table quarantined_changes enable row level security;
+commit;
