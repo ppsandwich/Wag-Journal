@@ -9,7 +9,7 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:5173 and choose **Meet Alfie’s sample diary**.
+Open http://localhost:5173 for the landing page, or http://localhost:5173/sample to go directly to **Alfie’s sample diary**. Sample entries stay on this device, but visiting `/` only opens a diary when signed in (or using a paired kiosk).
 
 - [Deployment and owner actions](docs/DEPLOYMENT.md)
 - [Implementation status and remaining release checks](docs/IMPLEMENTATION_STATUS.md)

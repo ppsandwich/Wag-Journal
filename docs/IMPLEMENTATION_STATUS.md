@@ -24,7 +24,7 @@ Both source entrypoints and built Vercel function artifacts count 2/12. The host
 ## Remaining implementation and release work
 
 1. Connect custom SMTP, verify signup/recovery delivery, then enable `VITE_EMAIL_READY`. Hosted tests with two temporary accounts pass. Complete physical-device testing of revoked sessions, recovery links, offline reconnect and conflict resolution.
-2. Qualified review and source/licence approval are required before enabling starting care templates and automated routine suggestions. Those features are deliberately unavailable; the current Patterns screen gives descriptive observations. Before/after suggestion experiments are not implemented.
+2. Qualified review and source/licence approval are required before enabling starting care templates and automated routine suggestions. A generic, editable example routine is available as an unsaved preview; it makes no age-specific care recommendations. Age-based care templates and automated suggestions remain unavailable; the current Patterns screen gives descriptive observations. Before/after suggestion experiments are not implemented.
 3. Duration charts include cross-midnight bands and an individual-record table. Validate readability with dense household histories and daylight-saving transition days during the pilot.
 4. Validate free-text care instructions operationally. Structured earliest/latest time constraints are enforced; software cannot infer restrictions from arbitrary prose or guarantee a relative prompt complies with such prose.
 5. Invitation links are generated for the owner to share. Automatic invitation email delivery is not implemented.

@@ -7,6 +7,7 @@ import {
   ArrowRight,
   Trash2,
 } from "lucide-react";
+import { createStarterRoutine } from "../lib/routine-template";
 import { useJournal } from "../lib/context";
 import {
   activities,
@@ -31,7 +32,8 @@ export function Routine() {
   const j = useJournal(),
     h = j.household!,
     today = day(new Date(), h.timezone);
-  const [viewDate, setViewDate] = useState(today),
+  const [starter] = useState(createStarterRoutine),
+    [viewDate, setViewDate] = useState(today),
     [editing, setEditing] = useState(false),
     [items, setItems] = useState<PlanItem[]>([]),
     [effective, setEffective] = useState(addDays(today, 1)),
@@ -50,10 +52,17 @@ export function Routine() {
       (c) => c.householdId === h.id && !c.deletedAt,
     ),
     owner = h.ownerId === j.userId;
-  const displayed = editing ? items : current?.items || [];
-  const begin = () => {
-    setItems(structuredClone(current?.items || []));
-    setEffective(addDays(today, 1));
+  const showStarter = routines.length === 0;
+  const displayed = editing
+    ? items
+    : current?.items || (showStarter ? starter : []);
+  const begin = (fromScratch = false) => {
+    setItems(
+      fromScratch
+        ? []
+        : structuredClone(current?.items || (showStarter ? starter : [])),
+    );
+    setEffective(showStarter ? today : addDays(today, 1));
     setEditing(true);
     setError("");
   };
@@ -93,10 +102,21 @@ export function Routine() {
           <p>A gentle plan. Room for real life.</p>
         </div>
         {!editing && (
-          <button className="primary" onClick={begin}>
-            <Pencil size={17} />
-            {current ? "Edit routine" : "Create routine"}
-          </button>
+          <div className="row-actions">
+            <button className="primary" onClick={() => begin()}>
+              <Pencil size={17} />
+              {current
+                ? "Edit routine"
+                : showStarter
+                  ? "Edit starter routine"
+                  : "Create routine"}
+            </button>
+            {(current || showStarter) && (
+              <button className="secondary" onClick={() => begin(true)}>
+                <Plus size={17} /> Start from scratch
+              </button>
+            )}
+          </div>
         )}
       </div>
       <div className="routine-toolbar">
@@ -122,6 +142,13 @@ export function Routine() {
           </button>
         </div>
       </div>
+      {showStarter && !editing && (
+        <div className="notice">
+          A starter routine to make your own. These example times are editable.
+          Adjust meals, outside trips, play and sleep to fit your puppy and your
+          household. Nothing is scheduled until you save.
+        </div>
+      )}
       {editing && (
         <div className="notice">
           You’re editing a new version. Existing records and past plans stay as
@@ -138,7 +165,9 @@ export function Routine() {
               ? "Make it your own"
               : current
                 ? `Routine from ${current.effectiveDate}`
-                : "Your routine starts here"
+                : showStarter
+                  ? "Starter routine · preview"
+                  : "Your routine starts here"
           }
           aside={<span className="small-muted">Household time</span>}
         />
@@ -231,9 +260,9 @@ export function Routine() {
         <div>
           <strong>Your care, your judgement.</strong>
           <p>
-            Starting templates and automatic care suggestions are awaiting
-            qualified review. Your own routine is available now. Protected
-            instructions are checked before saving.
+            Use the starter as an example, then adapt it to your puppy’s needs
+            and your vet or trainer’s guidance. Protected instructions are
+            checked before saving.
           </p>
         </div>
       </div>

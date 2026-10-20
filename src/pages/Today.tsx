@@ -409,7 +409,7 @@ export function Today({ navigate }: { navigate: (tab: string) => void }) {
                 <p>
                   {plans.length
                     ? "Your planned activities are complete or have passed. Keep recording what happens."
-                    : "A simple routine gives everyone a little direction. Start with what already works for you."}
+                    : "Make a starter routine your own, or build one from scratch."}
                 </p>
                 {!j.locked && (
                   <button

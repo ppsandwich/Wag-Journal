@@ -62,7 +62,9 @@ export const useJournal = () => useContext(C);
 export function JournalProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null),
     [authReady, setAuthReady] = useState(!supabase);
-  const [demo, setDemo] = useState(localStorage.getItem("wag-mode") === "demo");
+  const [demo, setDemo] = useState(
+    () => location.pathname.replace(/\/$/, "") === "/sample",
+  );
   const [kiosk, setKiosk] = useState<Kiosk | null>(() => {
     try {
       return JSON.parse(localStorage.getItem("wag-kiosk") || "null");
@@ -250,6 +252,13 @@ export function JournalProvider({ children }: { children: ReactNode }) {
       return;
     }
     readLocal(key)
+      .then(async (s) => {
+        if (key === "demo" && !s.snapshot.households.length) {
+          s = { snapshot: sampleData(), queue: [] };
+          await writeLocal(key, s);
+        }
+        return s;
+      })
       .then((s) => {
         if (!cancelled) {
           setState(s);
@@ -335,16 +344,14 @@ export function JournalProvider({ children }: { children: ReactNode }) {
     }
   };
   const startDemo = async () => {
-    window.scrollTo(0, 0);
-    let local = await readLocal("demo");
-    if (!local.snapshot.households.length) {
-      local = { snapshot: sampleData(), queue: [] };
-      await writeLocal("demo", local);
-    }
-    localStorage.setItem("wag-mode", "demo");
-    setDemo(true);
+    window.location.assign("/sample");
   };
   const leave = async () => {
+    if (demo && !locked) {
+      // Leaving the sample must not delete its entries or sign out an account.
+      window.location.assign("/");
+      return;
+    }
     if (
       state.queue.length &&
       !window.confirm(
