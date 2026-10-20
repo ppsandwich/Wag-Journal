@@ -56,6 +56,8 @@ export function Today({ navigate }: { navigate: (tab: string) => void }) {
   const [potty, setPotty] = useState(false),
     [editor, setEditor] = useState<Event | null>(null),
     [mode, setMode] = useState<Activity | null>(null),
+    [recordingMode, setRecordingMode] = useState("timer"),
+    [estimatedMinutes, setEstimatedMinutes] = useState("15"),
     [ending, setEnding] = useState<Event | null>(null),
     [offset, setOffset] = useState(0),
     [busy, setBusy] = useState(false),
@@ -266,7 +268,13 @@ export function Today({ navigate }: { navigate: (tab: string) => void }) {
                   {durations.includes(type) && (
                     <button
                       className="activity-mode"
-                      onClick={() => setMode(type)}
+                      onClick={() => {
+                        setRecordingMode(
+                          pref.presets[type] ? "estimate" : "timer",
+                        );
+                        setEstimatedMinutes(String(pref.presets[type] || 15));
+                        setMode(type);
+                      }}
                       aria-label={`Change ${labels[type].toLowerCase()} recording mode`}
                     >
                       <Settings2 size={12} />
@@ -497,7 +505,8 @@ export function Today({ navigate }: { navigate: (tab: string) => void }) {
             <Field label="Recording mode">
               <select
                 name="mode"
-                defaultValue={pref.presets[mode] ? "estimate" : "timer"}
+                value={recordingMode}
+                onChange={(e) => setRecordingMode(e.target.value)}
               >
                 <option value="timer">
                   Running timer (end it when finished)
@@ -507,6 +516,37 @@ export function Today({ navigate }: { navigate: (tab: string) => void }) {
                 </option>
               </select>
             </Field>
+            <div className="field">
+              <span>Duration presets</span>
+              <div
+                className="row-actions"
+                role="group"
+                aria-label="Duration presets"
+              >
+                {[10, 15, 20].map((minutes) => (
+                  <button
+                    key={minutes}
+                    type="button"
+                    className={
+                      recordingMode === "estimate" &&
+                      Number(estimatedMinutes) === minutes
+                        ? "primary"
+                        : "secondary"
+                    }
+                    aria-pressed={
+                      recordingMode === "estimate" &&
+                      Number(estimatedMinutes) === minutes
+                    }
+                    onClick={() => {
+                      setEstimatedMinutes(String(minutes));
+                      setRecordingMode("estimate");
+                    }}
+                  >
+                    {minutes} min
+                  </button>
+                ))}
+              </div>
+            </div>
             <Field
               label="Estimate in minutes"
               hint="Your own logging preference, not a recommended care duration."
@@ -516,7 +556,11 @@ export function Today({ navigate }: { navigate: (tab: string) => void }) {
                 type="number"
                 min={1}
                 max={1440}
-                defaultValue={pref.presets[mode] || 15}
+                value={estimatedMinutes}
+                onChange={(e) => {
+                  setEstimatedMinutes(e.target.value);
+                  setRecordingMode("estimate");
+                }}
                 required
               />
             </Field>
